@@ -1,0 +1,598 @@
+---
+title: "ChromiumPage — DrissionPage Browser Page Reference"
+description: "API reference for ChromiumPage, the primary Chromium page object. Covers navigation, element finding, screenshots, cookies, tabs, and JavaScript execution."
+---
+
+`ChromiumPage` is the primary object for controlling a Chromium-based browser page. It combines the browser-level `Chromium` singleton with full page interaction via the Chrome DevTools Protocol. Use it for navigation, DOM interaction, JavaScript execution, screenshots, and tab management.
+
+`ChromiumPage` extends `ChromiumBase` and shares a one-to-one relationship with a `Chromium` browser instance. Constructing a second `ChromiumPage` for the same browser returns the existing object.
+
+## Constructor
+
+```python
+from DrissionPage import ChromiumPage
+
+page = ChromiumPage()
+page = ChromiumPage(addr_or_opts=9222)
+page = ChromiumPage(addr_or_opts="127.0.0.1:9222")
+```
+
+<ParamField path="addr_or_opts" type="ChromiumOptions | str | int | None" default="None">
+  Browser address or options. Accepts a `ChromiumOptions` instance, a `"host:port"` string, a port number, or `None` for defaults.
+</ParamField>
+
+<ParamField path="tab_id" type="str | None" default="None">
+  Target tab ID to attach to. When `None`, attaches to the first available page tab.
+</ParamField>
+
+## Properties
+
+### Page info
+
+<ResponseField name="url" type="str">
+  Current URL of the page.
+</ResponseField>
+
+<ResponseField name="title" type="str">
+  Current page title.
+</ResponseField>
+
+<ResponseField name="html" type="str">
+  Full outer HTML of the current document.
+</ResponseField>
+
+<ResponseField name="json" type="dict | None">
+  Parsed JSON if the page body contains a JSON response, otherwise `None`.
+</ResponseField>
+
+<ResponseField name="tab_id" type="str">
+  DevTools target ID for this tab.
+</ResponseField>
+
+<ResponseField name="ready_state" type="str">
+  Current document ready state: `"connecting"`, `"loading"`, `"interactive"`, or `"complete"`.
+</ResponseField>
+
+<ResponseField name="load_mode" type="str">
+  Page load strategy: `"normal"`, `"eager"`, or `"none"`.
+</ResponseField>
+
+<ResponseField name="user_agent" type="str">
+  `navigator.userAgent` string reported by the page.
+</ResponseField>
+
+<ResponseField name="active_ele" type="ChromiumElement">
+  The element that currently has keyboard focus (`document.activeElement`).
+</ResponseField>
+
+### Browser access
+
+<ResponseField name="browser" type="Chromium">
+  The `Chromium` browser instance that owns this page.
+</ResponseField>
+
+<ResponseField name="address" type="str">
+  Host and port string of the browser, e.g. `"127.0.0.1:9222"`.
+</ResponseField>
+
+<ResponseField name="browser_version" type="str">
+  Browser product version string.
+</ResponseField>
+
+<ResponseField name="process_id" type="int | None">
+  OS-level process ID of the browser.
+</ResponseField>
+
+<ResponseField name="tabs_count" type="int">
+  Total number of open page/webview tabs.
+</ResponseField>
+
+<ResponseField name="tab_ids" type="list[str]">
+  IDs of all open page/webview tabs.
+</ResponseField>
+
+<ResponseField name="latest_tab" type="ChromiumTab | str">
+  The most recently activated tab.
+</ResponseField>
+
+### Timeouts and settings
+
+<ResponseField name="timeout" type="float">
+  Base element-wait timeout in seconds.
+</ResponseField>
+
+<ResponseField name="timeouts" type="Timeout">
+  `Timeout` object with `base`, `page_load`, and `script` attributes.
+</ResponseField>
+
+<ResponseField name="download_path" type="str">
+  Absolute path to the download directory.
+</ResponseField>
+
+<ResponseField name="retry_times" type="int">
+  Number of connection retry attempts.
+</ResponseField>
+
+<ResponseField name="retry_interval" type="float">
+  Seconds between retries.
+</ResponseField>
+
+### Accessors
+
+<ResponseField name="set" type="ChromiumPageSetter">
+  Setter accessor for timeouts, headers, cookies, load mode, and more.
+</ResponseField>
+
+<ResponseField name="wait" type="ChromiumPageWaiter">
+  Waiter accessor for page-load, element, and alert conditions.
+</ResponseField>
+
+<ResponseField name="states" type="PageStates">
+  State queries: `has_alert`, `is_loading`, `is_alive`, etc.
+</ResponseField>
+
+<ResponseField name="actions" type="Actions">
+  Mouse and keyboard action chains.
+</ResponseField>
+
+<ResponseField name="scroll" type="PageScroller">
+  Page scroll controls.
+</ResponseField>
+
+<ResponseField name="rect" type="TabRect">
+  Viewport and window geometry.
+</ResponseField>
+
+<ResponseField name="screencast" type="Screencast">
+  Screen recording controls.
+</ResponseField>
+
+<ResponseField name="listen" type="Listener">
+  Network request listener.
+</ResponseField>
+
+<ResponseField name="console" type="Console">
+  Browser console log capture.
+</ResponseField>
+
+## Navigation
+
+### `get()`
+
+Navigate to a URL and wait for the page to load.
+
+```python
+ok = page.get("https://example.com")
+ok = page.get("https://example.com", retry=3, interval=1, timeout=30)
+```
+
+<ParamField path="url" type="str">
+  Target URL. Use `file:///` prefix for local HTML files.
+</ParamField>
+
+<ParamField path="show_errmsg" type="bool" default="False">
+  Raise a `ConnectionError` on failure instead of returning `False`.
+</ParamField>
+
+<ParamField path="retry" type="int | None" default="None">
+  Number of retries on failure. Uses `page.retry_times` when `None`.
+</ParamField>
+
+<ParamField path="interval" type="float | None" default="None">
+  Seconds between retries. Uses `page.retry_interval` when `None`.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Page load timeout in seconds. Uses `page.timeouts.page_load` when `None`.
+</ParamField>
+
+Returns `True` if the page loaded successfully, `False` otherwise.
+
+---
+
+### `back()`
+
+Navigate backward in the browser history.
+
+```python
+page.back()
+page.back(steps=2)
+```
+
+<ParamField path="steps" type="int" default="1">
+  Number of history steps to go back.
+</ParamField>
+
+---
+
+### `forward()`
+
+Navigate forward in the browser history.
+
+```python
+page.forward()
+page.forward(steps=2)
+```
+
+<ParamField path="steps" type="int" default="1">
+  Number of history steps to go forward.
+</ParamField>
+
+---
+
+### `refresh()`
+
+Reload the current page.
+
+```python
+page.refresh()
+page.refresh(ignore_cache=True)
+```
+
+<ParamField path="ignore_cache" type="bool" default="False">
+  Bypass the browser cache (equivalent to Ctrl+Shift+R).
+</ParamField>
+
+---
+
+### `stop_loading()`
+
+Abort the current page load immediately.
+
+```python
+page.stop_loading()
+```
+
+## Finding elements
+
+### `ele()`
+
+Find the first element matching a locator.
+
+```python
+el = page.ele("#submit-btn")
+el = page.ele("css:#submit-btn")
+el = page.ele("xpath://button[@type='submit']")
+el = page.ele("@name=username")
+el = page.ele("tag:input", index=2, timeout=5)
+```
+
+<ParamField path="locator" type="str | tuple">
+  Locator string or `(by, value)` tuple. Prefix shorthands: `css:`, `xpath:`, `@attr=val`, `tag:`, `text:`, `text=`.
+</ParamField>
+
+<ParamField path="index" type="int" default="1">
+  1-based index when multiple elements match. Negative values count from the end.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Seconds to wait for the element. Uses `page.timeout` when `None`.
+</ParamField>
+
+Returns a `ChromiumElement`, or a `NoneElement` if not found.
+
+---
+
+### `eles()`
+
+Find all elements matching a locator.
+
+```python
+items = page.eles("tag:li")
+items = page.eles("css:.list-item", timeout=5)
+```
+
+<ParamField path="locator" type="str | tuple">
+  Locator string or `(by, value)` tuple.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Seconds to wait. Uses `page.timeout` when `None`.
+</ParamField>
+
+Returns a `ChromiumElementsList`.
+
+---
+
+### `s_ele()`
+
+Find an element and return it as a `SessionElement` (lightweight, static snapshot).
+
+```python
+el = page.s_ele("tag:table")
+```
+
+<ParamField path="locator" type="str | tuple | None" default="None">
+  Locator. When `None`, wraps the whole page.
+</ParamField>
+
+<ParamField path="index" type="int" default="1">
+  1-based match index.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Seconds to wait for the element.
+</ParamField>
+
+Returns a `SessionElement` or `NoneElement`.
+
+---
+
+### `s_eles()`
+
+Find all elements, returning them as `SessionElement` objects.
+
+```python
+rows = page.s_eles("tag:tr")
+```
+
+<ParamField path="locator" type="str | tuple">
+  Locator string or tuple.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Seconds to wait.
+</ParamField>
+
+Returns a `SessionElementsList`.
+
+## Screenshot
+
+### `get_screenshot()`
+
+Capture a screenshot of the page or a specific region.
+
+```python
+# Save to file
+path = page.get_screenshot(path="/tmp", name="capture.png")
+
+# Return as bytes
+data = page.get_screenshot(as_bytes="png")
+
+# Full-page screenshot
+data = page.get_screenshot(as_bytes=True, full_page=True)
+
+# Region capture
+path = page.get_screenshot(left_top=(100, 200), right_bottom=(800, 600))
+```
+
+<ParamField path="path" type="str | Path | None" default="None">
+  Directory to save the image. Defaults to the current directory.
+</ParamField>
+
+<ParamField path="name" type="str | None" default="None">
+  File name. Defaults to the page title with `.jpg` extension.
+</ParamField>
+
+<ParamField path="as_bytes" type="str | bool | None" default="None">
+  Return image as `bytes` instead of saving. Pass `True` for PNG or a format string: `"png"`, `"jpeg"`, `"webp"`.
+</ParamField>
+
+<ParamField path="as_base64" type="str | bool | None" default="None">
+  Return image as a base64 string. Same format options as `as_bytes`.
+</ParamField>
+
+<ParamField path="full_page" type="bool" default="False">
+  Capture the entire scrollable page, not just the viewport.
+</ParamField>
+
+<ParamField path="left_top" type="tuple[int, int] | None" default="None">
+  `(x, y)` pixel coordinate of the top-left corner of a capture region.
+</ParamField>
+
+<ParamField path="right_bottom" type="tuple[int, int] | None" default="None">
+  `(x, y)` pixel coordinate of the bottom-right corner of a capture region.
+</ParamField>
+
+Returns the absolute file path as `str`, raw `bytes`, or a base64 `str` depending on the arguments.
+
+## Cookies
+
+### `cookies()`
+
+Read cookies for the current page or all domains.
+
+```python
+cks = page.cookies()
+cks = page.cookies(all_domains=True, all_info=True)
+```
+
+<ParamField path="all_domains" type="bool" default="False">
+  Include cookies from all domains, not just the current page's domain.
+</ParamField>
+
+<ParamField path="all_info" type="bool" default="False">
+  Return full cookie metadata (path, expiry, secure, HttpOnly) instead of just `name`, `value`, `domain`.
+</ParamField>
+
+Returns a `CookiesList`.
+
+## JavaScript
+
+### `run_js()`
+
+Execute JavaScript in the page context.
+
+```python
+result = page.run_js("return document.title;", as_expr=True)
+result = page.run_js("return arguments[0] + arguments[1];", 1, 2)
+```
+
+<ParamField path="script" type="str">
+  JavaScript code to run. Can be a function body or expression.
+</ParamField>
+
+<ParamField path="*args" type="any">
+  Arguments passed into the script as `arguments[0]`, `arguments[1]`, etc.
+</ParamField>
+
+<ParamField path="as_expr" type="bool" default="False">
+  Evaluate `script` as a plain expression rather than a function body.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Script execution timeout. Uses `page.timeouts.script` when `None`.
+</ParamField>
+
+Returns the value returned by the script.
+
+## Alert handling
+
+### `handle_alert()`
+
+Accept or dismiss a JavaScript dialog (alert, confirm, or prompt).
+
+```python
+page.handle_alert()
+page.handle_alert(accept=False)
+page.handle_alert(accept=True, send="my input")
+```
+
+<ParamField path="accept" type="bool" default="True">
+  `True` to accept (OK), `False` to dismiss (Cancel).
+</ParamField>
+
+<ParamField path="send" type="str | None" default="None">
+  Text to fill into a prompt dialog before accepting.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Seconds to wait for the alert to appear.
+</ParamField>
+
+<ParamField path="next_one" type="bool" default="False">
+  Pre-configure how to handle the *next* dialog that opens.
+</ParamField>
+
+Returns the alert message text, or `False` if no dialog appeared.
+
+## Tab management
+
+### `new_tab()`
+
+Open a new tab in the browser.
+
+```python
+tab = page.new_tab("https://example.com")
+```
+
+<ParamField path="url" type="str | None" default="None">
+  URL to navigate to in the new tab.
+</ParamField>
+
+<ParamField path="new_window" type="bool" default="False">
+  Open as a new window.
+</ParamField>
+
+<ParamField path="background" type="bool" default="False">
+  Open in the background without focusing.
+</ParamField>
+
+<ParamField path="new_context" type="bool" default="False">
+  Open in an isolated browser context.
+</ParamField>
+
+Returns a `ChromiumTab` object.
+
+---
+
+### `get_tab()`
+
+Get an existing tab by ID, index, title, or URL pattern.
+
+```python
+tab = page.get_tab(1)
+tab = page.get_tab(title="Settings")
+```
+
+<ParamField path="id_or_num" type="str | int | None" default="None">
+  Tab ID string or 1-based integer index.
+</ParamField>
+
+<ParamField path="title" type="str | None" default="None">
+  Substring to match in the tab title.
+</ParamField>
+
+<ParamField path="url" type="str | None" default="None">
+  Substring to match in the tab URL.
+</ParamField>
+
+<ParamField path="tab_type" type="str" default="'page'">
+  Target type filter.
+</ParamField>
+
+Returns a `ChromiumTab` object.
+
+---
+
+### `close_tabs()`
+
+Close one or more tabs.
+
+```python
+page.close_tabs("TAB_ID")
+page.close_tabs([tab1, tab2])
+```
+
+<ParamField path="tabs_or_ids" type="str | ChromiumTab | list | tuple">
+  Tab(s) to close.
+</ParamField>
+
+<ParamField path="others" type="bool" default="False">
+  When `True`, close all tabs except the specified ones.
+</ParamField>
+
+---
+
+### `close()`
+
+Close the current tab.
+
+```python
+page.close()
+```
+
+---
+
+### `quit()`
+
+Shut down the browser.
+
+```python
+page.quit(force=True)
+```
+
+<ParamField path="timeout" type="float" default="5">
+  Seconds to wait for a graceful shutdown.
+</ParamField>
+
+<ParamField path="force" type="bool" default="True">
+  Kill the process if graceful shutdown fails.
+</ParamField>
+
+<ParamField path="del_data" type="bool" default="False">
+  Delete the user-data directory after quitting.
+</ParamField>
+
+## Page saving
+
+### `save()`
+
+Save the current page as HTML or PDF.
+
+```python
+page.save(path="/tmp", name="page.html")
+page.save(path="/tmp", name="page.pdf", as_pdf=True)
+```
+
+<ParamField path="path" type="str | Path | None" default="None">
+  Directory to save to. Defaults to the current directory.
+</ParamField>
+
+<ParamField path="name" type="str | None" default="None">
+  File name. Defaults to the page title.
+</ParamField>
+
+<ParamField path="as_pdf" type="bool" default="False">
+  Save as PDF instead of HTML.
+</ParamField>

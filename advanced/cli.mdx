@@ -1,0 +1,120 @@
+---
+title: "dp CLI reference: browser path, config, and launch options"
+description: "Use the dp command to set browser path, user data path, copy config files, and launch a browser for remote debugging from the terminal."
+---
+
+Installing DrissionPage adds a `dp` command to your shell. It provides shortcuts for one-time setup tasks — setting browser and profile paths, copying the default config file to your project, and starting a browser in remote debugging mode. All path-setting commands write the value directly into the default `configs.ini` file, so the change persists across all future runs.
+
+## Command syntax
+
+```bash
+dp [OPTIONS]
+```
+
+## Options reference
+
+| Flag | Short | Argument | Description |
+|---|---|---|---|
+| `--set-browser-path` | `-p` | `PATH` | Set and save the browser executable path in the config file |
+| `--set-user-path` | `-u` | `PATH` | Set and save the user data directory path in the config file |
+| `--configs-to-here` | `-c` | — | Copy the default `configs.ini` to the current directory as `dp_configs.ini` |
+| `--launch-browser` | `-l` | `PORT` | Launch a browser on the given port; `0` uses the port saved in the config file |
+
+---
+
+## Set browser path
+
+Saves the browser executable location into the config file permanently.
+
+<CodeGroup>
+```bash Windows
+dp --set-browser-path "D:\chrome\chrome.exe"
+
+# short form
+dp -p "D:\chrome\chrome.exe"
+```
+
+```bash macOS / Linux
+dp --set-browser-path /usr/bin/google-chrome
+
+# short form
+dp -p /usr/bin/google-chrome
+```
+</CodeGroup>
+
+---
+
+## Set user data path
+
+Saves the browser profile directory into the config file. This is the folder Chrome / Edge uses to store history, extensions, cookies, and other profile data.
+
+<CodeGroup>
+```bash Windows
+dp --set-user-path "D:\chrome\user_data"
+
+# short form
+dp -u "D:\chrome\user_data"
+```
+
+```bash macOS / Linux
+dp --set-user-path /home/user/.config/chrome-profile
+
+# short form
+dp -u /home/user/.config/chrome-profile
+```
+</CodeGroup>
+
+---
+
+## Copy config to current directory
+
+Copies the default `configs.ini` from the package installation directory into your current working directory and names it `dp_configs.ini`. DrissionPage automatically prefers this local file over the package default, so you can edit it freely without worrying about it being reset on upgrade.
+
+```bash
+dp --configs-to-here
+
+# short form
+dp -c
+```
+
+Run this once from your project root, then edit `dp_configs.ini` directly in any text editor.
+
+<Note>
+  This command is equivalent to calling `configs_to_here()` from Python, but
+  does not support custom filenames. Use the Python function if you need to
+  specify a name other than `dp_configs.ini`.
+
+  ```python
+  from DrissionPage.common import configs_to_here
+
+  configs_to_here(save_name='my_config.ini')
+  ```
+</Note>
+
+---
+
+## Launch browser
+
+Starts a browser instance in remote debugging mode and keeps it open, ready to be taken over by a DrissionPage script.
+
+```bash
+# start on a specific port
+dp --launch-browser 9333
+
+# short form
+dp -l 9333
+
+# use the port number already saved in configs.ini
+dp -l 0
+```
+
+Passing `0` reads the `address` value from the config file (default `127.0.0.1:9222`). Any other integer opens the browser on `127.0.0.1:<PORT>`.
+
+Once the browser is running, connect to it from your script:
+
+```python
+from DrissionPage import ChromiumPage, ChromiumOptions
+
+co = ChromiumOptions().set_local_port(9333)
+page = ChromiumPage(co)
+```

@@ -1,0 +1,200 @@
+---
+title: "Mouse and keyboard actions in DrissionPage automation"
+description: "Simulate mouse movements, clicks, drag-and-drop, and keyboard input in DrissionPage using the Actions class with fluent method chaining."
+---
+
+The `Actions` class lets you simulate low-level mouse and keyboard events on a browser page. All actions are simulated through the browser's DevTools protocol — the real system mouse does not move, so multiple tabs can be operated concurrently without interference.
+
+## Accessing the actions object
+
+Every `ChromiumPage`, `WebPage`, `ChromiumTab`, and `ChromiumFrame` object exposes an `actions` property:
+
+```python
+from DrissionPage import ChromiumPage
+
+page = ChromiumPage()
+page.get('https://www.baidu.com')
+page.actions.move_to('#kw').click().type('DrissionPage')
+```
+
+You can also create a standalone `Actions` object and pass any page or tab to it:
+
+```python
+from DrissionPage import ChromiumPage
+from DrissionPage.common import Actions
+
+page = ChromiumPage()
+ac = Actions(page)
+ac.move_to('#kw').click().type('DrissionPage')
+```
+
+The only difference is that the built-in `page.actions` waits for the page to finish loading before executing; a standalone `Actions` object does not.
+
+## Method chaining
+
+All action methods return the `Actions` object, so you can chain them:
+
+```python
+ac.move_to('#btn').click().type('hello')
+```
+
+Or call them separately — the result is identical:
+
+```python
+ac.move_to('#btn')
+ac.click()
+ac.type('hello')
+```
+
+## Mouse movement
+
+### `move_to()`
+
+Moves the mouse to the center of an element or to absolute page coordinates. An optional offset shifts the destination relative to the element's top-left corner.
+
+```python
+ac.move_to('#kw')                        # move to element center
+ac.move_to((300, 500))                   # move to absolute coordinates
+ac.move_to('#kw', offset_x=10, offset_y=-5)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `ele_or_loc` | `ChromiumElement`, `str`, or `(int, int)` | Required | Target element, locator, or coordinate tuple |
+| `offset_x` | `int` | `0` | Horizontal offset from the target |
+| `offset_y` | `int` | `0` | Vertical offset from the target |
+| `duration` | `float` | `0.5` | Seconds for the movement; `0` to jump instantly |
+
+### Relative movement
+
+Move relative to the current mouse position:
+
+```python
+ac.move(300, 0)    # 300 pixels to the right
+ac.up(50)          # 50 pixels up
+ac.down(50)        # 50 pixels down
+ac.left(50)        # 50 pixels left
+ac.right(50)       # 50 pixels right
+```
+
+## Mouse clicks
+
+| Method | Description |
+|--------|-------------|
+| `click(on_ele=None)` | Left-click |
+| `r_click(on_ele=None)` | Right-click |
+| `m_click(on_ele=None)` | Middle-click |
+| `db_click(on_ele=None)` | Double left-click |
+
+Pass an element or locator to move to it before clicking:
+
+```python
+ac.click('#submit-btn')
+ac.r_click(page.ele('tag:canvas'))
+```
+
+## Mouse hold and release
+
+Use `hold()` and `release()` to press and release a mouse button independently. This is the basis for drag-and-drop:
+
+```python
+ac.hold('#div1')    # press and hold left button on the element
+ac.right(300)       # drag 300 pixels to the right
+ac.release()        # release the button
+```
+
+Right and middle button equivalents: `r_hold()`, `r_release()`, `m_hold()`, `m_release()`.
+
+## Scroll wheel
+
+```python
+ac.scroll(delta_x=0, delta_y=300)              # scroll down 300 units
+ac.scroll(delta_y=-200, on_ele='#content')     # scroll up inside an element
+```
+
+## Keyboard input
+
+### `key_down()` and `key_up()`
+
+Press and release individual keys. Use key names as strings or the `Keys` class:
+
+```python
+from DrissionPage.common import Keys
+
+ac.key_down('ENTER')
+ac.key_up(Keys.CTRL)
+```
+
+### `type()`
+
+Types text or key combinations as if entered on a keyboard. Supports sequences passed as a list:
+
+```python
+ac.type('hello world')
+ac.type(('ab', 'cd'))                    # multiple segments
+ac.type((Keys.LEFT, 'inserted text'))    # move cursor then type
+```
+
+### `input()`
+
+Similar to `type()` but intended for general text and unicode input:
+
+```python
+ac.input('DrissionPage')
+```
+
+### `wait()`
+
+Pauses the action chain for a specified number of seconds:
+
+```python
+ac.wait(1.5)
+```
+
+## Complex action sequence example
+
+<Steps>
+  <Step title="Set up the page and actions object">
+    ```python
+    from DrissionPage import ChromiumPage
+    from DrissionPage.common import Actions, Keys
+
+    page = ChromiumPage()
+    page.get('https://www.baidu.com')
+    ac = Actions(page)
+    ```
+  </Step>
+  <Step title="Hover over an element">
+    ```python
+    ac.move_to('#kw', duration=0.3)
+    ```
+  </Step>
+  <Step title="Click and type with keyboard shortcuts">
+    Click the search field, select all existing text with Ctrl+A, then type new text:
+
+    ```python
+    ac.click('#kw').key_down(Keys.CTRL).type('a').key_up(Keys.CTRL).type('DrissionPage')
+    ```
+  </Step>
+  <Step title="Submit and wait">
+    ```python
+    ac.click('#su')
+    page.wait.load_start()
+    print(page.title)
+    ```
+  </Step>
+</Steps>
+
+## Drag-and-drop example
+
+Drag an element to another element using `hold()` and `release()` with a target:
+
+```python
+ac.hold('#source').release('#target')
+```
+
+Or drag by a relative distance:
+
+```python
+ac.hold('#source').right(300).release()
+```

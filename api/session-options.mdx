@@ -1,0 +1,544 @@
+---
+title: "SessionOptions — HTTP requests session settings reference"
+description: "Configure headers, cookies, authentication, proxies, timeouts, and SSL settings for DrissionPage's requests-based HTTP session mode."
+---
+
+`SessionOptions` configures the `requests.Session` used by DrissionPage's session mode (`SessionPage` and the `s` mode of `WebPage`). Use it to set headers, cookies, authentication, proxies, and other HTTP behaviour before creating a page object.
+
+## Constructor
+
+```python
+from DrissionPage import SessionOptions
+
+so = SessionOptions()
+```
+
+<ParamField path="read_file" type="bool" default="True">
+  Read settings from an INI file on construction. Pass `False` to start from clean defaults, which is useful when building options entirely in code and you don't want any persisted settings loaded.
+</ParamField>
+
+<ParamField path="ini_path" type="str | Path" default="None">
+  Path to a custom INI file. When `None`, DrissionPage looks for `dp_configs.ini` in the current directory first, then falls back to the built-in `configs.ini` inside the package.
+</ParamField>
+
+<Note>
+All configuration methods return `self`, enabling chained calls: `so.set_headers({...}).set_timeout(30).set_proxies(http='http://proxy:8080')`.
+</Note>
+
+## Properties
+
+<ResponseField name="headers" type="dict">
+  HTTP headers sent with every request. Keys are lowercased automatically.
+</ResponseField>
+
+<ResponseField name="cookies" type="list">
+  Cookies attached to the session, returned as a list of dicts.
+</ResponseField>
+
+<ResponseField name="auth" type="tuple[str, str] | HTTPBasicAuth">
+  Authentication credentials used for HTTP Basic or Digest auth.
+</ResponseField>
+
+<ResponseField name="proxies" type="dict">
+  Proxy URLs keyed by scheme, e.g. `{'http': '...', 'https': '...'}`.
+</ResponseField>
+
+<ResponseField name="params" type="dict">
+  Query parameters appended to every request URL.
+</ResponseField>
+
+<ResponseField name="verify" type="bool">
+  Whether to verify SSL certificates. Defaults to `True`.
+</ResponseField>
+
+<ResponseField name="cert" type="str | tuple[str, str]">
+  Path to a client-side SSL certificate (`.pem` file), or a `('cert', 'key')` tuple.
+</ResponseField>
+
+<ResponseField name="stream" type="bool">
+  Whether to stream response content instead of downloading it all at once.
+</ResponseField>
+
+<ResponseField name="hooks" type="dict">
+  `requests` event hook callbacks.
+</ResponseField>
+
+<ResponseField name="trust_env" type="bool">
+  Whether to read proxy settings and other configuration from environment variables and `.netrc`.
+</ResponseField>
+
+<ResponseField name="max_redirects" type="int">
+  Maximum number of redirects to follow before raising an error.
+</ResponseField>
+
+<ResponseField name="timeout" type="float">
+  Request timeout in seconds. Default is `10`.
+</ResponseField>
+
+<ResponseField name="download_path" type="str">
+  Default directory where downloaded files are saved.
+</ResponseField>
+
+<ResponseField name="retry_times" type="int">
+  Number of times to retry a failed connection.
+</ResponseField>
+
+<ResponseField name="retry_interval" type="float">
+  Seconds to wait between retries.
+</ResponseField>
+
+---
+
+## Headers
+
+### `set_headers()`
+
+Replace all request headers at once.
+
+```python
+so.set_headers({
+    'user-agent': 'Mozilla/5.0 ...',
+    'accept-language': 'en-US,en;q=0.9',
+})
+```
+
+<ParamField path="headers" type="dict | str | None" required>
+  Headers to set. Accepts a dict or a raw header string. Pass `None` to clear all headers and mark them for deletion in the INI file.
+</ParamField>
+
+---
+
+### `set_a_header()`
+
+Add or update a single header without touching the others.
+
+```python
+so.set_a_header('accept-language', 'zh-CN,zh;q=0.9')
+```
+
+<ParamField path="name" type="str" required>
+  Header name. Automatically lowercased.
+</ParamField>
+
+<ParamField path="value" type="str" required>
+  Header value.
+</ParamField>
+
+---
+
+### `remove_a_header()`
+
+Remove a single header from the configuration.
+
+```python
+so.remove_a_header('accept-language')
+```
+
+<ParamField path="name" type="str" required>
+  Header name to remove (case-insensitive).
+</ParamField>
+
+---
+
+### `clear_headers()`
+
+Remove all headers from the configuration and mark them for deletion in the INI file.
+
+```python
+so.clear_headers()
+```
+
+---
+
+## Cookies
+
+### `set_cookies()`
+
+Set one or more cookies on the session.
+
+```python
+# dict
+so.set_cookies({'session_id': 'abc123', 'token': 'xyz'})
+
+# list of dicts
+so.set_cookies([
+    {'name': 'session_id', 'value': 'abc123', 'domain': 'example.com'},
+    {'name': 'token', 'value': 'xyz'},
+])
+
+# Netscape/header string
+so.set_cookies('session_id=abc123; token=xyz')
+```
+
+<ParamField path="cookies" type="Cookie | CookieJar | list | tuple | str | dict | None" required>
+  Cookie data in any supported format. Pass `None` to clear all cookies and mark them for deletion in the INI file.
+</ParamField>
+
+---
+
+## Authentication
+
+### `set_auth()`
+
+Set HTTP Basic or Digest authentication credentials.
+
+```python
+so.set_auth(('username', 'password'))
+```
+
+<ParamField path="auth" type="tuple[str, str] | HTTPBasicAuth | None" required>
+  A `(username, password)` tuple or a `requests.auth.HTTPBasicAuth` object. Pass `None` to clear.
+</ParamField>
+
+---
+
+## Proxies
+
+### `set_proxies()`
+
+Configure HTTP and HTTPS proxy servers.
+
+```python
+so.set_proxies(http='http://proxy.example.com:8080')
+so.set_proxies(http='http://10.0.0.1:8080', https='http://10.0.0.1:8080')
+```
+
+<ParamField path="http" type="str | None" default="None">
+  Proxy URL for `http://` requests.
+</ParamField>
+
+<ParamField path="https" type="str | None" default="None">
+  Proxy URL for `https://` requests. If not specified, the `http` value is not applied to HTTPS traffic.
+</ParamField>
+
+---
+
+## Timeout and retries
+
+### `set_timeout()`
+
+Set how many seconds to wait for a server response before raising a timeout error.
+
+```python
+so.set_timeout(30)
+```
+
+<ParamField path="second" type="float" required>
+  Timeout in seconds.
+</ParamField>
+
+---
+
+### `set_retry()`
+
+Configure retry behaviour when a connection fails.
+
+```python
+so.set_retry(times=5, interval=3)
+```
+
+<ParamField path="times" type="int" default="None">
+  Number of retry attempts. Only updated if provided.
+</ParamField>
+
+<ParamField path="interval" type="float" default="None">
+  Seconds to wait between retries. Only updated if provided.
+</ParamField>
+
+---
+
+## Downloads
+
+### `set_download_path()`
+
+Set the default directory where files downloaded through the session are saved.
+
+```python
+so.set_download_path(r'D:\downloads')
+```
+
+<ParamField path="path" type="str | Path" required>
+  Download directory. Pass `None` to reset to `'.'`.
+</ParamField>
+
+---
+
+## SSL and advanced options
+
+### `set_verify()`
+
+Control SSL certificate verification.
+
+```python
+so.set_verify(False)  # disable SSL verification
+```
+
+<ParamField path="on_off" type="bool | None" required>
+  `True` to verify certificates (default), `False` to skip verification.
+</ParamField>
+
+<Warning>
+Disabling SSL verification exposes you to man-in-the-middle attacks. Only use `False` in trusted, controlled environments.
+</Warning>
+
+---
+
+### `set_cert()`
+
+Provide a client-side SSL certificate for mutual TLS authentication.
+
+```python
+so.set_cert('/path/to/client.pem')
+so.set_cert(('/path/to/cert.pem', '/path/to/key.pem'))
+```
+
+<ParamField path="cert" type="str | tuple[str, str] | None" required>
+  Path to a `.pem` certificate file, or a `('cert_path', 'key_path')` tuple.
+</ParamField>
+
+---
+
+### `set_stream()`
+
+Enable streaming to download response content incrementally rather than all at once.
+
+```python
+so.set_stream(True)
+```
+
+<ParamField path="on_off" type="bool | None" required>
+  `True` to enable streaming responses.
+</ParamField>
+
+---
+
+### `set_trust_env()`
+
+Control whether `requests` reads proxy settings and credentials from environment variables and `.netrc`.
+
+```python
+so.set_trust_env(False)
+```
+
+<ParamField path="on_off" type="bool | None" required>
+  `True` to trust the environment (default), `False` to ignore it.
+</ParamField>
+
+---
+
+### `set_max_redirects()`
+
+Set the maximum number of redirects to follow before raising a `TooManyRedirects` exception.
+
+```python
+so.set_max_redirects(5)
+```
+
+<ParamField path="times" type="int | None" required>
+  Maximum redirect count.
+</ParamField>
+
+---
+
+### `set_params()`
+
+Attach query parameters to every request made in this session.
+
+```python
+so.set_params({'api_key': 'secret', 'format': 'json'})
+```
+
+<ParamField path="params" type="dict | None" required>
+  Query parameter dict. Pass `None` to clear.
+</ParamField>
+
+---
+
+### `add_adapter()`
+
+Mount a custom `requests` transport adapter for a URL prefix.
+
+```python
+from requests.adapters import HTTPAdapter
+
+so.add_adapter('https://', HTTPAdapter(max_retries=3))
+```
+
+<ParamField path="url" type="str" required>
+  URL prefix the adapter handles, e.g. `'https://'`.
+</ParamField>
+
+<ParamField path="adapter" type="HTTPAdapter" required>
+  Transport adapter instance.
+</ParamField>
+
+---
+
+### `set_hooks()`
+
+Set `requests` event hooks, called on certain lifecycle events such as response received.
+
+```python
+def log_response(r, *args, **kwargs):
+    print(r.status_code)
+
+so.set_hooks({'response': log_response})
+```
+
+<ParamField path="hooks" type="dict | None" required>
+  Dictionary mapping event names to callables.
+</ParamField>
+
+---
+
+## Saving configuration
+
+### `save()`
+
+Persist the current configuration to an INI file.
+
+```python
+so.save()                          # save to the file that was read on construction
+so.save(r'D:\configs\my.ini')      # save to a custom path
+so.save('default')                 # save to the built-in package INI file
+```
+
+<ParamField path="path" type="str | Path" default="None">
+  Destination file path. `None` saves to the currently loaded INI file. `'default'` saves to the built-in `configs.ini`.
+</ParamField>
+
+Returns the absolute path of the saved file as a `str`.
+
+---
+
+### `save_to_default()`
+
+Save configuration to the built-in `configs.ini`. Equivalent to `save('default')`.
+
+```python
+so.save_to_default()
+```
+
+Returns the absolute path of the saved file as a `str`.
+
+---
+
+## Utility methods
+
+### `as_dict()`
+
+Return the current configuration as a plain dictionary. Useful for inspection or passing configuration to other functions.
+
+```python
+config = so.as_dict()
+print(config)
+```
+
+### `make_session()`
+
+Build and return a configured `requests.Session` from the current options. Returns a `(Session, headers)` tuple where `headers` is a `CaseInsensitiveDict`.
+
+```python
+session, headers = so.make_session()
+response = session.get('https://example.com', headers=headers)
+```
+
+### `from_session()`
+
+Populate this `SessionOptions` from an existing `requests.Session` object.
+
+```python
+import requests
+
+existing = requests.Session()
+so.from_session(existing)
+```
+
+<ParamField path="session" type="requests.Session" required>
+  Session object to read configuration from.
+</ParamField>
+
+<ParamField path="headers" type="CaseInsensitiveDict" default="None">
+  Optional extra headers to merge with the session's existing headers.
+</ParamField>
+
+---
+
+## Common usage patterns
+
+### Authenticated scraping with custom headers
+
+```python
+from DrissionPage import SessionOptions, SessionPage
+
+so = (
+    SessionOptions()
+    .set_headers({
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ...',
+        'accept': 'application/json',
+        'authorization': 'Bearer my-api-token',
+    })
+    .set_timeout(30)
+    .set_retry(times=3, interval=2)
+)
+
+page = SessionPage(so)
+page.get('https://api.example.com/data')
+print(page.json)
+```
+
+---
+
+### Session with cookies from a login
+
+```python
+from DrissionPage import SessionOptions, SessionPage
+
+so = SessionOptions()
+so.set_cookies([
+    {'name': 'session_id', 'value': 'abc123', 'domain': '.example.com'},
+    {'name': 'csrf_token', 'value': 'xyz789', 'domain': '.example.com'},
+])
+so.set_a_header('referer', 'https://example.com')
+
+page = SessionPage(so)
+page.get('https://example.com/profile')
+```
+
+---
+
+### Scraping behind a proxy with no SSL verification
+
+```python
+from DrissionPage import SessionOptions, SessionPage
+
+so = (
+    SessionOptions()
+    .set_proxies(http='http://proxy.internal:3128', https='http://proxy.internal:3128')
+    .set_verify(False)
+    .set_timeout(60)
+)
+
+page = SessionPage(so)
+page.get('https://internal.corp/api')
+```
+
+---
+
+### Persisting session settings to a custom INI file
+
+```python
+from DrissionPage import SessionOptions
+
+so = SessionOptions(read_file=False)   # start clean, don't load any file
+so.set_headers({'user-agent': 'MyBot/1.0'})
+so.set_timeout(20)
+so.set_retry(times=5, interval=1)
+so.save(r'D:\configs\scraper.ini')
+```
+
+On the next run, load those settings directly:
+
+```python
+so = SessionOptions(ini_path=r'D:\configs\scraper.ini')
+```

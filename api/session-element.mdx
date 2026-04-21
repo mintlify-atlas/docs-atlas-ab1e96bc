@@ -1,0 +1,317 @@
+---
+title: "SessionElement — DrissionPage Static Element Reference"
+description: "API reference for SessionElement, the read-only HTML element parsed from HTTP responses. Covers properties, attribute reading, and DOM traversal methods."
+---
+
+`SessionElement` is a read-only wrapper around an `lxml` HTML element. It is produced by `SessionPage` when parsing HTTP response bodies, and by `ChromiumPage.s_ele()` when you want a lightweight static snapshot of a live element.
+
+Unlike `ChromiumElement`, `SessionElement` has no connection to a running browser. It does not support clicking, typing, JavaScript execution, or any interaction that requires a live DOM. It is best suited for fast, scraping-style data extraction from already-loaded HTML.
+
+<Note>
+  `SessionElement` is read-only. Methods like `click()`, `input()`, and `run_js()` do not exist on this class. For interactive automation, use `ChromiumElement` instead.
+</Note>
+
+## Properties
+
+<ResponseField name="tag" type="str">
+  Tag name in lowercase, e.g. `"div"`, `"a"`, `"td"`.
+</ResponseField>
+
+<ResponseField name="text" type="str">
+  Visible text content of the element, with whitespace normalized and HTML entities decoded.
+</ResponseField>
+
+<ResponseField name="raw_text" type="str">
+  Raw `text_content()` from lxml — all text in the subtree concatenated, without normalization.
+</ResponseField>
+
+<ResponseField name="html" type="str">
+  Outer HTML of the element including the element tag itself and all descendants.
+</ResponseField>
+
+<ResponseField name="inner_html" type="str">
+  Inner HTML — the markup between the opening and closing tags.
+</ResponseField>
+
+<ResponseField name="attrs" type="dict[str, str]">
+  Dictionary of all HTML attributes on the element.
+</ResponseField>
+
+<ResponseField name="value" type="str | None">
+  Value of the `value` attribute (e.g. for `<input>` elements). `None` when absent.
+</ResponseField>
+
+<ResponseField name="link" type="str | None">
+  Resolved absolute URL from `href` or `src`. `None` when neither attribute is present.
+</ResponseField>
+
+<ResponseField name="inner_ele" type="lxml.html.HtmlElement">
+  The underlying lxml element object, for direct use with lxml APIs.
+</ResponseField>
+
+## Reading attributes
+
+### `attr()`
+
+Get the value of a named attribute with special handling for common attribute names.
+
+```python
+href = el.attr("href")      # absolute URL
+src  = el.attr("src")       # absolute URL
+name = el.attr("name")
+text = el.attr("text")      # equivalent to el.text
+html = el.attr("html")      # equivalent to el.html
+inn  = el.attr("innerHTML") # equivalent to el.inner_html
+```
+
+<ParamField path="name" type="str">
+  Attribute name. Special names resolve as follows:
+  - `"href"` / `"src"` — resolved to absolute URLs using the owning page's URL
+  - `"text"` — returns `self.text`
+  - `"innerText"` — returns `self.raw_text`
+  - `"html"` / `"outerHTML"` — returns `self.html`
+  - `"innerHTML"` — returns `self.inner_html`
+  - All other names — returns `self.inner_ele.get(name.lower())`
+</ParamField>
+
+Returns the attribute value as `str`, or `None` if absent.
+
+## Finding child elements
+
+### `ele()`
+
+Find the first descendant element matching a locator.
+
+```python
+el = row.ele("tag:td")
+el = form.ele("@name=email")
+el = article.ele("css:h2")
+el = page_el.ele("xpath:.//span[@class='price']")
+```
+
+<ParamField path="locator" type="str | tuple">
+  Locator string or `(by, value)` tuple. Supported prefixes: `css:`, `xpath:`, `@attr=val`, `tag:`, `text:`, `text=`.
+</ParamField>
+
+<ParamField path="index" type="int" default="1">
+  1-based result index. Negative values count from the end.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Accepted for API compatibility; not used (there is no live DOM to wait on).
+</ParamField>
+
+Returns a `SessionElement`, or a `NoneElement` if not found.
+
+---
+
+### `eles()`
+
+Find all descendant elements matching a locator.
+
+```python
+cells  = row.eles("tag:td")
+links  = container.eles("tag:a")
+items  = ul.eles("css:li.active")
+```
+
+<ParamField path="locator" type="str | tuple">
+  Locator string or tuple.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Accepted for API compatibility; not used.
+</ParamField>
+
+Returns a `SessionElementsList`.
+
+## DOM traversal
+
+### `parent()`
+
+Get an ancestor element.
+
+```python
+p   = el.parent()           # immediate parent
+gp  = el.parent(2)          # grandparent
+frm = el.parent("tag:form") # nearest ancestor matching locator
+```
+
+<ParamField path="level_or_loc" type="int | str | tuple" default="1">
+  Integer level (1 = immediate parent) or a locator for the nearest matching ancestor.
+</ParamField>
+
+<ParamField path="index" type="int" default="1">
+  When a locator is provided, the n-th matching ancestor.
+</ParamField>
+
+Returns a `SessionElement` or `NoneElement`.
+
+---
+
+### `child()`
+
+Get a direct child element.
+
+```python
+first = ul.child()
+third = ul.child(index=3)
+li    = ul.child("tag:li")
+```
+
+<ParamField path="locator" type="str | tuple" default="''">
+  Optional locator. Empty string matches any direct child element.
+</ParamField>
+
+<ParamField path="index" type="int" default="1">
+  1-based index among matching children.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Not used; accepted for API compatibility.
+</ParamField>
+
+<ParamField path="ele_only" type="bool" default="True">
+  Skip text nodes; return only element nodes.
+</ParamField>
+
+---
+
+### `next()`
+
+Get a following sibling element.
+
+```python
+sib  = el.next()
+sib2 = el.next(index=2)
+p    = el.next("tag:p")
+```
+
+<ParamField path="locator" type="str | tuple" default="''">
+  Optional locator to filter siblings.
+</ParamField>
+
+<ParamField path="index" type="int" default="1">
+  1-based index among matching siblings.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Not used.
+</ParamField>
+
+<ParamField path="ele_only" type="bool" default="True">
+  Skip text nodes.
+</ParamField>
+
+Returns a `SessionElement` or `NoneElement`.
+
+---
+
+### `prev()`
+
+Get a preceding sibling element.
+
+```python
+sib  = el.prev()
+sib2 = el.prev(index=2)
+lbl  = el.prev("tag:label")
+```
+
+<ParamField path="locator" type="str | tuple" default="''">
+  Optional locator to filter siblings.
+</ParamField>
+
+<ParamField path="index" type="int" default="1">
+  1-based index counted backward from the element.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Not used.
+</ParamField>
+
+<ParamField path="ele_only" type="bool" default="True">
+  Skip text nodes.
+</ParamField>
+
+---
+
+### `before()`
+
+Find the nearest element that appears before this one in the document.
+
+```python
+el = target.before()
+el = target.before("tag:label", index=1)
+```
+
+<ParamField path="locator" type="str | tuple" default="''">
+  Optional locator to filter results.
+</ParamField>
+
+<ParamField path="index" type="int" default="1">
+  1-based index.
+</ParamField>
+
+<ParamField path="ele_only" type="bool" default="True">
+  Skip text nodes.
+</ParamField>
+
+---
+
+### `after()`
+
+Find the nearest element that appears after this one in the document.
+
+```python
+el = target.after()
+el = target.after("tag:span")
+```
+
+<ParamField path="locator" type="str | tuple" default="''">
+  Optional locator.
+</ParamField>
+
+<ParamField path="index" type="int" default="1">
+  1-based index.
+</ParamField>
+
+<ParamField path="ele_only" type="bool" default="True">
+  Skip text nodes.
+</ParamField>
+
+---
+
+### `children()` / `nexts()` / `prevs()` / `befores()` / `afters()`
+
+Plural traversal methods that return all matching elements.
+
+```python
+all_children = el.children()
+filtered     = el.children("tag:li")
+following    = el.nexts("tag:p")
+preceding    = el.prevs()
+```
+
+Each method accepts the same `locator`, `timeout`, and `ele_only` parameters as its singular counterpart, and returns a `SessionElementsList`.
+
+## Comparison
+
+`SessionElement` objects are equal (`==`) when they share the same XPath position in the document tree:
+
+```python
+a == b  # True if a.xpath == b.xpath
+```
+
+## Differences from ChromiumElement
+
+| Capability | `SessionElement` | `ChromiumElement` |
+|---|---|---|
+| Read attributes | Yes | Yes |
+| Traverse DOM | Yes | Yes |
+| Click / hover | **No** | Yes |
+| Type input | **No** | Yes |
+| Run JavaScript | **No** | Yes |
+| Take screenshot | **No** | Yes |
+| Live DOM updates | **No** | Yes |
+| Speed | Fast | Slower |
+| Requires browser | **No** | Yes |

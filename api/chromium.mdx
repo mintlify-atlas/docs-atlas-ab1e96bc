@@ -1,0 +1,344 @@
+---
+title: "Chromium Class — DrissionPage Browser API Reference"
+description: "API reference for the Chromium browser object. Manages the browser process, tabs, timeouts, downloads, and cookies at the browser level."
+---
+
+The `Chromium` class represents the browser process itself — distinct from any individual page or tab. It is the entry point for controlling a Chromium-based browser, and it exposes browser-level operations such as opening new tabs, closing tabs, managing download settings, adjusting timeouts, and reading or clearing cookies across all tabs.
+
+`Chromium` uses a singleton pattern per browser instance: calling `Chromium()` with the same address returns the same object.
+
+## Constructor
+
+```python
+from DrissionPage import Chromium
+
+browser = Chromium()
+browser = Chromium(addr_or_opts=9222)
+browser = Chromium(addr_or_opts="127.0.0.1:9222")
+```
+
+<ParamField path="addr_or_opts" type="ChromiumOptions | str | int | None" default="None">
+  Browser address or options object. Accepts a `ChromiumOptions` instance, a `"host:port"` string, a port number as `int`, or `None` to use default settings.
+</ParamField>
+
+<ParamField path="session_options" type="SessionOptions | None" default="None">
+  Optional session options to use when `WebPage` is created from this browser. Pass a `SessionOptions` instance or `None`.
+</ParamField>
+
+## Properties
+
+<ResponseField name="id" type="str">
+  Unique browser instance identifier (the browser's websocket debugger ID).
+</ResponseField>
+
+<ResponseField name="address" type="str">
+  Host and port string the browser is listening on, e.g. `"127.0.0.1:9222"`.
+</ResponseField>
+
+<ResponseField name="version" type="str">
+  Browser product version string, e.g. `"Chrome/120.0.6099.130"`.
+</ResponseField>
+
+<ResponseField name="process_id" type="int | None">
+  OS-level process ID of the browser process. `None` if it cannot be determined.
+</ResponseField>
+
+<ResponseField name="tabs_count" type="int">
+  Number of open page/webview tabs (excludes DevTools tabs).
+</ResponseField>
+
+<ResponseField name="tab_ids" type="list[str]">
+  List of tab IDs for all open page/webview tabs, ordered most-recent-first.
+</ResponseField>
+
+<ResponseField name="latest_tab" type="MixTab | str">
+  The most recently created or activated tab. Returns a `MixTab` object or its ID depending on the `Settings.singleton_tab_obj` setting.
+</ResponseField>
+
+<ResponseField name="timeout" type="float">
+  The base timeout value in seconds. Shortcut for `browser.timeouts.base`.
+</ResponseField>
+
+<ResponseField name="timeouts" type="Timeout">
+  A `Timeout` object with three attributes: `base`, `page_load`, and `script` (all in seconds).
+</ResponseField>
+
+<ResponseField name="load_mode" type="str">
+  Page load strategy. One of `"normal"`, `"eager"`, or `"none"`.
+</ResponseField>
+
+<ResponseField name="download_path" type="str">
+  Absolute path to the current download directory.
+</ResponseField>
+
+<ResponseField name="retry_times" type="int">
+  Number of times to retry a failed connection.
+</ResponseField>
+
+<ResponseField name="retry_interval" type="float">
+  Seconds to wait between connection retries.
+</ResponseField>
+
+<ResponseField name="user_data_path" type="str">
+  Path to the browser profile directory.
+</ResponseField>
+
+<ResponseField name="set" type="BrowserSetter">
+  Accessor for browser-level setters. Use `browser.set.timeouts()`, `browser.set.download_path()`, etc.
+</ResponseField>
+
+<ResponseField name="wait" type="BrowserWaiter">
+  Accessor for browser-level waiters. Use `browser.wait.new_tab()`, etc.
+</ResponseField>
+
+<ResponseField name="states" type="BrowserStates">
+  Accessor for browser state queries. Exposes `is_alive`, `is_headless`, `is_existed`, and `is_incognito`.
+</ResponseField>
+
+## Tab management
+
+### `get_tab()`
+
+Retrieve an existing tab by ID, index, title, or URL pattern.
+
+```python
+tab = browser.get_tab()
+tab = browser.get_tab(1)
+tab = browser.get_tab(id_or_num="ABC123")
+tab = browser.get_tab(title="GitHub")
+tab = browser.get_tab(url="github.com")
+```
+
+<ParamField path="id_or_num" type="str | int | None" default="None">
+  Tab ID string, 1-based integer index, or `None` to return the first tab.
+</ParamField>
+
+<ParamField path="title" type="str | None" default="None">
+  Substring to match against tab titles.
+</ParamField>
+
+<ParamField path="url" type="str | None" default="None">
+  Substring to match against tab URLs.
+</ParamField>
+
+<ParamField path="tab_type" type="str" default="'page'">
+  Target type — `"page"` or `"webview"`.
+</ParamField>
+
+Returns a `MixTab` object.
+
+---
+
+### `get_tabs()`
+
+Retrieve all tabs that match the given filters.
+
+```python
+tabs = browser.get_tabs()
+tabs = browser.get_tabs(url="example.com")
+```
+
+<ParamField path="title" type="str | None" default="None">
+  Substring to match against tab titles.
+</ParamField>
+
+<ParamField path="url" type="str | None" default="None">
+  Substring to match against tab URLs.
+</ParamField>
+
+<ParamField path="tab_type" type="str" default="'page'">
+  Target type — `"page"` or `"webview"`.
+</ParamField>
+
+Returns a `list[MixTab]`.
+
+---
+
+### `new_tab()`
+
+Open a new tab, optionally navigating it to a URL.
+
+```python
+tab = browser.new_tab()
+tab = browser.new_tab(url="https://example.com")
+tab = browser.new_tab(url="https://example.com", new_window=True)
+```
+
+<ParamField path="url" type="str | None" default="None">
+  URL to navigate to immediately after opening. Pass `None` to open a blank tab.
+</ParamField>
+
+<ParamField path="new_window" type="bool" default="False">
+  Open in a new browser window instead of a new tab.
+</ParamField>
+
+<ParamField path="background" type="bool" default="False">
+  Open the tab in the background without activating it.
+</ParamField>
+
+<ParamField path="new_context" type="bool" default="False">
+  Open in a new browser context (isolated storage, cookies, etc.).
+</ParamField>
+
+Returns a `MixTab` object.
+
+---
+
+### `close_tabs()`
+
+Close one or more tabs.
+
+```python
+browser.close_tabs("TAB_ID")
+browser.close_tabs([tab1, tab2])
+browser.close_tabs("TAB_ID", others=True)  # close all except this one
+```
+
+<ParamField path="tabs_or_ids" type="str | ChromiumTab | list | tuple">
+  A single tab ID string, a `ChromiumTab` object, or a list/tuple of either.
+</ParamField>
+
+<ParamField path="others" type="bool" default="False">
+  When `True`, close all tabs *except* those listed. When all tabs would be closed, `quit()` is called instead.
+</ParamField>
+
+---
+
+### `activate_tab()`
+
+Bring a tab to the front.
+
+```python
+browser.activate_tab(1)
+browser.activate_tab("TAB_ID")
+```
+
+<ParamField path="id_ind_tab" type="str | int | ChromiumTab">
+  Tab ID, 1-based index, or `ChromiumTab` object.
+</ParamField>
+
+## Browser-level setters (`set`)
+
+### `set.timeouts()`
+
+Set one or more timeout values.
+
+```python
+browser.set.timeouts(base=10, page_load=30, script=30)
+```
+
+<ParamField path="base" type="float | None" default="None">
+  Base element-wait timeout in seconds.
+</ParamField>
+
+<ParamField path="page_load" type="float | None" default="None">
+  Page load timeout in seconds.
+</ParamField>
+
+<ParamField path="script" type="float | None" default="None">
+  JavaScript execution timeout in seconds.
+</ParamField>
+
+---
+
+### `set.download_path()`
+
+Change the download directory.
+
+```python
+browser.set.download_path("/tmp/downloads")
+```
+
+<ParamField path="path" type="str | Path">
+  Absolute or relative path to the target download directory.
+</ParamField>
+
+## Browser-level waiters (`wait`)
+
+### `wait.new_tab()`
+
+Block until a new tab is created and return its ID.
+
+```python
+tab_id = browser.wait.new_tab()
+tab_id = browser.wait.new_tab(timeout=5)
+```
+
+<ParamField path="timeout" type="float | None" default="None">
+  Maximum seconds to wait. Uses `browser.timeout` if `None`.
+</ParamField>
+
+<ParamField path="curr_tab" type="str | None" default="None">
+  ID of the tab that was current before the action. Used to detect which tab is "new".
+</ParamField>
+
+Returns the new tab ID as a `str`, or raises `TimeoutError`.
+
+## Cookies
+
+### `cookies()`
+
+Return all browser-level cookies.
+
+```python
+cks = browser.cookies()
+cks = browser.cookies(all_info=True)
+```
+
+<ParamField path="all_info" type="bool" default="False">
+  When `False` (default), return only `name`, `value`, and `domain`. When `True`, return the full cookie dict including expiry, path, secure, and HttpOnly flags.
+</ParamField>
+
+Returns a `CookiesList`.
+
+## Maintenance
+
+### `clear_cache()`
+
+Clear browser cache and/or cookies.
+
+```python
+browser.clear_cache()
+browser.clear_cache(cache=True, cookies=False)
+```
+
+<ParamField path="cache" type="bool" default="True">
+  Clear the browser HTTP cache.
+</ParamField>
+
+<ParamField path="cookies" type="bool" default="True">
+  Clear all browser-level cookies.
+</ParamField>
+
+---
+
+### `reconnect()`
+
+Re-establish the WebSocket connection to the browser without restarting it.
+
+```python
+browser.reconnect()
+```
+
+---
+
+### `quit()`
+
+Shut down the browser process.
+
+```python
+browser.quit()
+browser.quit(timeout=10, force=True, del_data=True)
+```
+
+<ParamField path="timeout" type="float" default="5">
+  Seconds to wait for a graceful shutdown before giving up.
+</ParamField>
+
+<ParamField path="force" type="bool" default="False">
+  Kill all browser processes by PID if the graceful shutdown fails.
+</ParamField>
+
+<ParamField path="del_data" type="bool" default="False">
+  Delete the user-data directory after quitting (only applies when `is_auto_port` is `False`).
+</ParamField>

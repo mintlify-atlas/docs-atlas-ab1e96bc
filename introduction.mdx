@@ -1,0 +1,73 @@
+---
+title: "DrissionPage: Python web automation without WebDriver"
+description: "DrissionPage combines Chromium browser control and HTTP requests in one Python API — no WebDriver, no driver downloads, and cleaner code than Selenium."
+---
+
+DrissionPage is a Python web automation library that drives Chromium-based browsers directly via the Chrome DevTools Protocol and sends HTTP requests through `requests` — all from a single, unified API. Starting from version 3.0, it no longer depends on Selenium or WebDriver, giving you faster runtime performance, fewer setup headaches, and more powerful element-finding capabilities.
+
+## Key differentiators from Selenium
+
+| Capability | DrissionPage | Selenium |
+|---|---|---|
+| WebDriver required | No | Yes |
+| Driver version management | Not needed | Required per browser version |
+| Cross-iframe element search | Direct, no switching | Must `switch_to.frame()` |
+| Multiple tabs simultaneously | Yes, without switching | One active tab at a time |
+| Full-page screenshots | Yes (Chrome 90+) | Viewport only |
+| Shadow DOM (closed) | Supported | Not supported |
+| HTTP request mode | Built-in | External library needed |
+
+## Page objects
+
+DrissionPage provides three main page objects. Choose the one that fits your task.
+
+<CardGroup cols={2}>
+  <Card title="ChromiumPage" icon="browser" href="/pages/chromium-page">
+    Controls a Chromium-based browser (Chrome, Edge). Launches or attaches to an existing browser automatically. Use this when you need full browser interaction — clicks, form input, JavaScript execution, and tab management.
+  </Card>
+  <Card title="SessionPage" icon="bolt" href="/pages/session-page">
+    Sends and receives HTTP data packets without a browser. Shares the same element-finding API as ChromiumPage, but runs orders of magnitude faster. Ideal for scraping sites with straightforward HTML responses.
+  </Card>
+  <Card title="WebPage" icon="arrows-left-right" href="/pages/web-page">
+    Combines both modes in one object. Log in using the browser, then switch to session mode to collect data efficiently — without re-authenticating or managing cookies manually.
+  </Card>
+  <Card title="Get started now" icon="rocket" href="/quickstart">
+    Follow the quickstart to write your first DrissionPage automation script in minutes.
+  </Card>
+</CardGroup>
+
+## Supported environments
+
+- **Python**: 3.6 and above
+- **Operating systems**: Windows, Linux, macOS
+- **Browsers**: Chromium-based browsers (Chrome, Edge) and Electron applications
+
+## How it works
+
+All three page objects follow the same operational pattern: create a page object, find elements on the page, then read or act on those elements. The element locator syntax is consistent whether you are using browser mode or session mode.
+
+```python
+from DrissionPage import ChromiumPage
+
+page = ChromiumPage()
+page.get('https://example.com')
+
+# Locate by CSS selector shorthand
+page.ele('#submit-btn').click()
+
+# Locate by text content
+page.ele('text:Sign in').click()
+
+# Locate by attribute
+page.ele('@placeholder=Search').input('DrissionPage')
+```
+
+DrissionPage's locator syntax is more concise than XPath or CSS selectors, and it is compatible with both XPath and CSS selector strings when you need them.
+
+## Configuration management
+
+DrissionPage stores browser and session settings in an INI configuration file that is read automatically at startup. You rarely need to write configuration boilerplate in your scripts. When you do need to customize settings — browser executable path, user data directory, proxy, headers — you use `ChromiumOptions` or `SessionOptions` and optionally persist them with `.save()`.
+
+<Tip>
+  Ready to write your first script? Head to the [quickstart](/quickstart) for working code examples covering browser control, HTTP requests, and hybrid usage.
+</Tip>

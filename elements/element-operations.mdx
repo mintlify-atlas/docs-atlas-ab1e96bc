@@ -1,0 +1,371 @@
+---
+title: "Click, type, and interact with elements in DrissionPage"
+description: "Click, type, clear, drag, scroll, and wait on ChromiumElement objects — including file upload, select dropdowns, and keyboard shortcuts."
+---
+
+After you locate an element with `ele()`, you interact with it through properties on the element object. Clicking is handled by `.click`, text input by `.input()`, selection lists by `.select`, scrolling by `.scroll`, and waiting by `.wait`. All interaction methods are only available on `ChromiumElement` (browser mode), not on `SessionElement`.
+
+## Clicking
+
+### `click()` and `click.left()`
+
+Both perform a left-click. By default, DrissionPage simulates a real mouse click and scrolls the element into the viewport first. If the element is obscured, it falls back to a JavaScript click automatically.
+
+```python
+ele.click()
+
+# Force a JavaScript click regardless of visibility
+ele.click(by_js=True)
+
+# Auto-detect: simulate if unobstructed, otherwise use JS
+ele.click(by_js=None)
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `by_js` | `bool` or `None` | `False` | `False` = force simulated; `True` = force JS; `None` = auto |
+| `timeout` | `float` | `1.5` | Seconds to wait for the element to become visible and clickable |
+| `wait_stop` | `bool` | `True` | Wait for any animation to stop before clicking |
+
+### `click.right()`
+
+Performs a right-click. Useful for triggering context menus.
+
+```python
+ele.click.right()
+```
+
+### `click.middle()`
+
+Performs a middle-click. In browsers this typically opens a link in a new tab.
+
+```python
+ele.click.middle()
+```
+
+### `click.at()`
+
+Clicks at a specific offset from the element's top-left corner. Both `offset_x` and `offset_y` are optional — omitting them clicks the center.
+
+```python
+# Click 50 px to the right and 20 px down from the top-left corner
+ele.click.at(50, 20)
+
+# Click the center (equivalent to click())
+ele.click.at()
+```
+
+### `click.multiple()`
+
+Performs multiple rapid clicks, defaulting to a double-click.
+
+```python
+ele.click.multiple()       # double-click
+ele.click.multiple(3)      # triple-click
+```
+
+## Typing and input
+
+### `input()`
+
+Types text (or sends key combinations) into the element. The element is focused automatically.
+
+```python
+# Type a value
+ele.input('hello@example.com')
+
+# Clear existing content before typing
+ele.input('new value', clear=True)
+
+# Append a newline (submit the form)
+ele.input('search query\n')
+```
+
+<Note>
+  `clear` defaults to `True`, so previous content is removed before each `input()` call unless you pass `clear=False`. Non-string values are automatically converted to strings.
+</Note>
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `vals` | `Any` | Required | Text to type, key combination tuple, or file path(s) for file inputs |
+| `clear` | `bool` | `True` | Clear the field before typing |
+| `by_js` | `bool` | `False` | Use JavaScript to set the value; cannot send key combinations |
+
+### Key combinations
+
+Import `Keys` and pass a tuple of keys to send combinations:
+
+```python
+from DrissionPage.common import Keys
+
+# Ctrl + A to select all, then Delete
+ele.input((Keys.CTRL, 'a', Keys.DEL))
+
+# Press Enter
+ele.input(Keys.ENTER)
+```
+
+Common `Keys` constants: `Keys.ENTER`, `Keys.TAB`, `Keys.ESCAPE`, `Keys.BACKSPACE`, `Keys.CTRL`, `Keys.SHIFT`, `Keys.ALT`, `Keys.F5`.
+
+### `clear()`
+
+Clears the text field by simulating `Ctrl+A` then `Delete` (or optionally via JavaScript).
+
+```python
+ele.clear()
+
+# Use JavaScript instead of simulated keystrokes
+ele.clear(by_js=True)
+```
+
+## File upload
+
+Pass a file path directly to `input()` on a file `<input>` element. DrissionPage handles this transparently without needing a file dialog:
+
+```python
+file_input = page.ele('tag:input@type=file')
+file_input.input('/path/to/document.pdf')
+
+# Upload multiple files
+file_input.input(['/path/file1.pdf', '/path/file2.pdf'])
+```
+
+## Select dropdowns
+
+The `.select` property on a `<select>` element exposes methods for choosing options. These methods return `True` if the selection succeeded.
+
+### `select.by_text()`
+
+Selects an option by its visible text label.
+
+```python
+dropdown = page.ele('tag:select@name=country')
+dropdown.select.by_text('United States')
+```
+
+### `select.by_value()`
+
+Selects an option by its `value` attribute.
+
+```python
+dropdown.select.by_value('us')
+```
+
+### `select.by_index()`
+
+Selects an option by position, starting from `1`.
+
+```python
+dropdown.select.by_index(1)   # first option
+```
+
+### Multi-select
+
+Pass a list to select multiple options at once (only for `<select multiple>`):
+
+```python
+multi = page.ele('tag:select@multiple')
+multi.select.by_text(['Option A', 'Option B'])
+```
+
+### Other select helpers
+
+```python
+dropdown.select.all()     # select all options
+dropdown.select.clear()   # deselect all options
+dropdown.select.invert()  # invert selection
+
+# Cancel a specific selection
+dropdown.select.cancel_by_text('United States')
+dropdown.select.cancel_by_value('us')
+```
+
+## Scrolling
+
+### `scroll.to_see()`
+
+Scrolls the page until the element is visible in the viewport.
+
+```python
+ele.scroll.to_see()
+
+# Scroll so the element is centered in the viewport
+ele.scroll.to_see(center=True)
+```
+
+### Scrolling inside a container
+
+When the element itself is a scrollable container, you can scroll its contents:
+
+```python
+container = page.ele('#results-list')
+container.scroll.to_bottom()
+container.scroll.to_top()
+container.scroll.down(200)        # scroll down 200 px
+container.scroll.to_location(0, 500)
+```
+
+## Drag and drop
+
+### `drag_to()`
+
+Drags the element to another element or to a coordinate.
+
+```python
+source = page.ele('#draggable')
+target = page.ele('#drop-zone')
+
+# Drag to another element
+source.drag_to(target)
+
+# Drag to a coordinate on the page
+source.drag_to((400, 300))
+
+# Control the drag duration in seconds
+source.drag_to(target, duration=1.0)
+```
+
+### `drag()`
+
+Drags the element by an offset relative to its current position.
+
+```python
+# Move 100 px right and 50 px down, over 0.5 seconds
+ele.drag(100, 50, duration=0.5)
+```
+
+## Hovering
+
+```python
+# Hover over the center of the element
+ele.hover()
+
+# Hover with an offset from the top-left corner
+ele.hover(offset_x=20, offset_y=10)
+```
+
+## Waiting for element state changes
+
+The `.wait` property returns an `ElementWaiter` with methods that block until a condition is met (or the timeout expires). All methods return `True` on success, or `False` if the condition was not met within the timeout.
+
+```python
+# Wait for the element to become visible
+ele.wait.displayed()
+
+# Wait for the element to be hidden
+ele.wait.hidden()
+
+# Wait for the element to be deleted from the DOM
+ele.wait.deleted()
+
+# Wait for the element to become enabled
+ele.wait.enabled()
+
+# Wait for the element to become disabled
+ele.wait.disabled()
+
+# Wait for the element to be clickable (visible + enabled + has geometry)
+ele.wait.clickable()
+
+# Wait for any animation to stop
+ele.wait.stop_moving()
+```
+
+Each method accepts a `timeout` parameter (seconds) that overrides the page default:
+
+```python
+appeared = ele.wait.displayed(timeout=5)
+if not appeared:
+    print('Element never became visible')
+```
+
+## Running JavaScript on an element
+
+```python
+# `this` refers to the element
+ele.run_js('this.style.border = "2px solid red";')
+
+# Return a value from JS
+height = ele.run_js('return this.offsetHeight;')
+```
+
+## "Fill and submit a form" walkthrough
+
+<Steps>
+  <Step title="Find the form fields">
+    Locate each field using `ele()` with an appropriate locator.
+
+    ```python
+    from DrissionPage import ChromiumPage
+
+    page = ChromiumPage()
+    page.get('https://example.com/signup')
+
+    name_field  = page.ele('#full-name')
+    email_field = page.ele('@name=email')
+    country_sel = page.ele('tag:select@name=country')
+    terms_box   = page.ele('#agree-terms')
+    submit_btn  = page.ele('@value=Sign up')
+    ```
+  </Step>
+  <Step title="Fill in the text fields">
+    Use `input()` to type into each field. Content is cleared automatically before typing.
+
+    ```python
+    name_field.input('Jane Smith')
+    email_field.input('jane@example.com')
+    ```
+  </Step>
+  <Step title="Select a dropdown option">
+    Use `select.by_text()` to choose from the `<select>` element.
+
+    ```python
+    country_sel.select.by_text('Canada')
+    ```
+  </Step>
+  <Step title="Check a checkbox">
+    Use `check()` to tick the checkbox if it is not already checked.
+
+    ```python
+    if not terms_box.states.is_checked:
+        terms_box.check()
+    ```
+  </Step>
+  <Step title="Submit the form">
+    Click the submit button and wait for the next page to load.
+
+    ```python
+    submit_btn.click()
+    page.wait.load_start()
+    print('Submitted. Current URL:', page.url)
+    ```
+  </Step>
+</Steps>
+
+## Modifying element attributes
+
+Use `set.attr()` to write an attribute value, `set.prop()` to set a DOM property, and `remove_attr()` to delete an attribute:
+
+```python
+# Add or update an attribute
+ele.set.attr('data-status', 'active')
+
+# Set a DOM property
+ele.set.prop('value', 'prefilled text')
+
+# Remove an attribute
+ele.remove_attr('disabled')
+
+# Set innerHTML
+ele.set.innerHTML('<span>new content</span>')
+```
+
+## Checking and un-checking
+
+`check()` handles checkboxes and radio buttons. Pass `uncheck=True` to deselect:
+
+```python
+ele.check()                # select (check)
+ele.check(uncheck=True)    # deselect (uncheck)
+ele.check(by_js=True)      # use JavaScript instead of simulated click
+```

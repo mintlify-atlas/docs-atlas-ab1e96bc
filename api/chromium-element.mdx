@@ -1,0 +1,676 @@
+---
+title: "ChromiumElement — DrissionPage Live Element Reference"
+description: "API reference for ChromiumElement, the live browser DOM element. Covers properties, click and input methods, child element finding, and state queries."
+---
+
+`ChromiumElement` represents a live element in a Chromium browser's DOM. It wraps the Chrome DevTools Protocol node identifiers and provides a high-level API for reading element content, interacting with it (click, input, clear), traversing the DOM tree, and taking screenshots.
+
+Because `ChromiumElement` refers to a live node, it can become stale if the page navigates away or the DOM is heavily mutated. Use `states.is_alive` to check validity when needed.
+
+## Properties
+
+### Content
+
+<ResponseField name="tag" type="str">
+  Tag name of the element in lowercase, e.g. `"div"`, `"input"`, `"button"`.
+</ResponseField>
+
+<ResponseField name="text" type="str">
+  Visible text content of the element and its descendants, with whitespace normalized.
+</ResponseField>
+
+<ResponseField name="raw_text" type="str">
+  Raw `innerText` of the element as reported by the browser, without additional normalization.
+</ResponseField>
+
+<ResponseField name="html" type="str">
+  Outer HTML of the element including its own tag and all descendants.
+</ResponseField>
+
+<ResponseField name="inner_html" type="str">
+  Inner HTML — the markup inside the element's tags.
+</ResponseField>
+
+<ResponseField name="attrs" type="dict[str, str]">
+  Dictionary of all HTML attributes on the element.
+</ResponseField>
+
+<ResponseField name="value" type="str | None">
+  Current `value` property of the element (for form inputs).
+</ResponseField>
+
+<ResponseField name="link" type="str | None">
+  Resolved absolute URL for `href` or `src` attributes. `None` when absent.
+</ResponseField>
+
+### Geometry
+
+<ResponseField name="rect" type="ElementRect">
+  Geometry accessor. Exposes `location` (x, y), `size` (width, height), `midpoint`, `click_point`, and `corners`.
+</ResponseField>
+
+### Accessors
+
+<ResponseField name="states" type="ElementStates">
+  Element state queries. See [Element states](#element-states) below.
+</ResponseField>
+
+<ResponseField name="set" type="ChromiumElementSetter">
+  Setter for attributes, properties, innerHTML, and file inputs.
+</ResponseField>
+
+<ResponseField name="click" type="Clicker">
+  Click controller. Use `ele.click()` for a standard click, or access sub-methods for right-click, middle-click, etc.
+</ResponseField>
+
+<ResponseField name="scroll" type="ElementScroller">
+  Scroll controller to scroll the element into view or scroll within it.
+</ResponseField>
+
+<ResponseField name="wait" type="ElementWaiter">
+  Wait helper. Use `ele.wait.clickable()`, `ele.wait.deleted()`, etc.
+</ResponseField>
+
+<ResponseField name="select" type="SelectElement | False">
+  `SelectElement` helper for `<select>` elements. `False` for non-select elements.
+</ResponseField>
+
+<ResponseField name="pseudo" type="Pseudo">
+  Access CSS pseudo-element content (`::before`, `::after`).
+</ResponseField>
+
+<ResponseField name="sr" type="ShadowRoot | None">
+  The shadow root attached to this element, or `None` if there is none.
+</ResponseField>
+
+## Reading attributes
+
+### `attr()`
+
+Get the value of a named attribute, with special handling for `href`, `src`, `text`, `innerText`, `html`, and `innerHTML`.
+
+```python
+href = el.attr("href")    # returns absolute URL
+src  = el.attr("src")     # returns absolute URL
+name = el.attr("name")
+text = el.attr("text")    # equivalent to el.text
+```
+
+<ParamField path="name" type="str">
+  Attribute name. Special names: `"href"`, `"src"` (resolved to absolute URLs), `"text"` (visible text), `"innerText"` (raw text), `"html"` / `"outerHTML"`, `"innerHTML"`.
+</ParamField>
+
+Returns the attribute value as `str`, or `None` if the attribute is absent.
+
+---
+
+### `property()`
+
+Get a JavaScript DOM property of the element.
+
+```python
+checked = el.property("checked")
+classes = el.property("className")
+```
+
+<ParamField path="name" type="str">
+  Property name as it appears in the DOM, e.g. `"value"`, `"checked"`, `"className"`.
+</ParamField>
+
+Returns the property value (can be `str`, `bool`, `int`, etc.), or `None` on error.
+
+---
+
+### `style()`
+
+Get a computed CSS style value.
+
+```python
+color = el.style("color")
+display = el.style("display")
+content = el.style("content", pseudo_ele="::before")
+```
+
+<ParamField path="style" type="str">
+  CSS property name in kebab-case, e.g. `"background-color"`.
+</ParamField>
+
+<ParamField path="pseudo_ele" type="str" default="''">
+  Pseudo-element selector such as `"::before"` or `"::after"`. Empty string for the element itself.
+</ParamField>
+
+Returns the computed value as `str`.
+
+## Interaction
+
+### `input()`
+
+Type text or key sequences into the element.
+
+```python
+el.input("hello world")
+el.input("hello world", clear=True)   # clear existing value first
+el.input(["line1", "line2"])           # join list items and type
+el.input("search term", by_js=True)   # set value via JavaScript
+```
+
+<ParamField path="vals" type="str | list | tuple">
+  Text to type. Lists and tuples are joined into a single string. Special key constants from `Keys` are also accepted.
+</ParamField>
+
+<ParamField path="clear" type="bool" default="False">
+  Clear the current value before typing.
+</ParamField>
+
+<ParamField path="by_js" type="bool" default="False">
+  Set the value via JavaScript instead of simulating keyboard events. Faster but does not trigger keyboard events.
+</ParamField>
+
+Returns `self` for chaining.
+
+---
+
+### `clear()`
+
+Clear the content of an input or textarea.
+
+```python
+el.clear()
+el.clear(by_js=True)  # use JavaScript
+```
+
+<ParamField path="by_js" type="bool" default="False">
+  Use `element.value = ''` via JavaScript instead of Ctrl+A / Delete keystrokes. Forced to `True` on macOS.
+</ParamField>
+
+Returns `self` for chaining.
+
+---
+
+### `click()`
+
+Click the element. `click` is a `Clicker` object — calling it directly performs a standard left-click.
+
+```python
+el.click()
+el.click(by_js=True)           # force JavaScript click
+el.click(by_js=None)           # JavaScript click if element is not visible
+el.click(timeout=3)            # wait up to 3 s for clickability
+```
+
+<ParamField path="by_js" type="bool | None" default="None">
+  `False` for a simulated mouse click, `True` to call `element.click()` via JavaScript, `None` to use JavaScript automatically when the element is not directly clickable.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Seconds to wait for the element to become clickable. Uses `page.timeout` when `None`.
+</ParamField>
+
+Returns `self` for chaining.
+
+---
+
+### `hover()`
+
+Move the mouse cursor over the element.
+
+```python
+el.hover()
+el.hover(offset_x=10, offset_y=5)
+```
+
+<ParamField path="offset_x" type="int | None" default="None">
+  Horizontal offset from the element's top-left corner. When `None`, hovers the midpoint.
+</ParamField>
+
+<ParamField path="offset_y" type="int | None" default="None">
+  Vertical offset. When `None`, hovers the midpoint.
+</ParamField>
+
+Returns `self` for chaining.
+
+---
+
+### `focus()`
+
+Set keyboard focus on the element.
+
+```python
+el.focus()
+```
+
+Returns `self` for chaining.
+
+---
+
+### `check()`
+
+Check or uncheck a checkbox or radio input.
+
+```python
+el.check()             # check
+el.check(uncheck=True) # uncheck
+el.check(by_js=True)   # use JavaScript
+```
+
+<ParamField path="uncheck" type="bool" default="False">
+  When `True`, unchecks an already-checked element.
+</ParamField>
+
+<ParamField path="by_js" type="bool" default="False">
+  Set `checked` via JavaScript instead of clicking.
+</ParamField>
+
+Returns `self` for chaining.
+
+---
+
+### `drag()`
+
+Drag the element by a pixel offset.
+
+```python
+el.drag(offset_x=100, offset_y=0)
+el.drag(offset_x=100, offset_y=0, duration=0.3)
+```
+
+<ParamField path="offset_x" type="int" default="0">
+  Horizontal drag distance in pixels.
+</ParamField>
+
+<ParamField path="offset_y" type="int" default="0">
+  Vertical drag distance in pixels.
+</ParamField>
+
+<ParamField path="duration" type="float" default="0.5">
+  Duration of the drag animation in seconds.
+</ParamField>
+
+---
+
+### `drag_to()`
+
+Drag the element to another element or coordinate.
+
+```python
+el.drag_to(target_el)
+el.drag_to((400, 300))
+```
+
+<ParamField path="ele_or_loc" type="ChromiumElement | tuple[int, int]">
+  Target element or `(x, y)` coordinate.
+</ParamField>
+
+<ParamField path="duration" type="float" default="0.5">
+  Duration in seconds.
+</ParamField>
+
+## Finding child elements
+
+### `ele()`
+
+Find the first matching descendant element.
+
+```python
+btn = container.ele("tag:button")
+inp = form.ele("@name=email")
+```
+
+<ParamField path="locator" type="str | tuple">
+  Locator string or `(by, value)` tuple. Supports `css:`, `xpath:`, `@attr=val`, `tag:`, `text:`, `text=`.
+</ParamField>
+
+<ParamField path="index" type="int" default="1">
+  1-based result index.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Seconds to wait. Uses `page.timeout` when `None`.
+</ParamField>
+
+Returns a `ChromiumElement` or `NoneElement`.
+
+---
+
+### `eles()`
+
+Find all matching descendant elements.
+
+```python
+rows = table.eles("tag:tr")
+```
+
+<ParamField path="locator" type="str | tuple">
+  Locator string or tuple.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Seconds to wait.
+</ParamField>
+
+Returns a `ChromiumElementsList`.
+
+## DOM traversal
+
+### `parent()`
+
+Get an ancestor element.
+
+```python
+p = el.parent()           # immediate parent
+p = el.parent(2)          # grandparent
+p = el.parent("tag:form") # nearest ancestor matching locator
+```
+
+<ParamField path="level_or_loc" type="int | str | tuple" default="1">
+  Integer level (1 = immediate parent, 2 = grandparent, etc.) or a locator to find the nearest matching ancestor.
+</ParamField>
+
+<ParamField path="index" type="int" default="1">
+  When a locator is given, the n-th matching ancestor.
+</ParamField>
+
+<ParamField path="timeout" type="float" default="0">
+  Seconds to wait for the parent element.
+</ParamField>
+
+Returns a `ChromiumElement` or `NoneElement`.
+
+---
+
+### `child()`
+
+Get a direct child element.
+
+```python
+first_li = ul.child()
+second_li = ul.child(index=2)
+li = ul.child("tag:li")
+```
+
+<ParamField path="locator" type="str | tuple" default="''">
+  Optional locator to filter children. Empty string matches any child element.
+</ParamField>
+
+<ParamField path="index" type="int" default="1">
+  1-based index among matching children.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Seconds to wait.
+</ParamField>
+
+<ParamField path="ele_only" type="bool" default="True">
+  Ignore text nodes; return only element nodes.
+</ParamField>
+
+---
+
+### `next()`
+
+Get a following sibling element.
+
+```python
+sib = el.next()
+sib = el.next(index=2)
+sib = el.next("tag:p")
+```
+
+<ParamField path="locator" type="str | tuple" default="''">
+  Optional locator to filter siblings.
+</ParamField>
+
+<ParamField path="index" type="int" default="1">
+  1-based index among matching siblings.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Seconds to wait.
+</ParamField>
+
+<ParamField path="ele_only" type="bool" default="True">
+  Skip text nodes.
+</ParamField>
+
+Returns a `ChromiumElement` or `NoneElement`.
+
+---
+
+### `prev()`
+
+Get a preceding sibling element.
+
+```python
+sib = el.prev()
+sib = el.prev(index=2)
+```
+
+<ParamField path="locator" type="str | tuple" default="''">
+  Optional locator to filter siblings.
+</ParamField>
+
+<ParamField path="index" type="int" default="1">
+  1-based index among matching siblings, counted from the element backward.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Seconds to wait.
+</ParamField>
+
+<ParamField path="ele_only" type="bool" default="True">
+  Skip text nodes.
+</ParamField>
+
+---
+
+### `before()`
+
+Find the nearest element that appears before this one in the document (not limited to siblings).
+
+```python
+el = target.before()
+el = target.before("tag:label")
+```
+
+<ParamField path="locator" type="str | tuple" default="''">
+  Optional locator to filter results.
+</ParamField>
+
+<ParamField path="index" type="int" default="1">
+  1-based index.
+</ParamField>
+
+---
+
+### `after()`
+
+Find the nearest element that appears after this one in the document.
+
+```python
+el = target.after()
+el = target.after("tag:p")
+```
+
+<ParamField path="locator" type="str | tuple" default="''">
+  Optional locator to filter results.
+</ParamField>
+
+<ParamField path="index" type="int" default="1">
+  1-based index.
+</ParamField>
+
+---
+
+### `children()` / `nexts()` / `prevs()` / `befores()` / `afters()`
+
+Plural versions of the traversal methods, returning all matching elements as a `ChromiumElementsList`.
+
+```python
+all_children = el.children()
+filtered     = el.children("tag:li")
+following    = el.nexts("tag:p")
+```
+
+## Screenshot
+
+### `get_screenshot()`
+
+Capture a screenshot of just this element.
+
+```python
+path = el.get_screenshot(path="/tmp", name="button.png")
+data = el.get_screenshot(as_bytes="png")
+b64  = el.get_screenshot(as_base64=True)
+```
+
+<ParamField path="path" type="str | Path | None" default="None">
+  Directory to save the image file.
+</ParamField>
+
+<ParamField path="name" type="str | None" default="None">
+  File name. Defaults to `"{tag}.jpg"`.
+</ParamField>
+
+<ParamField path="as_bytes" type="str | bool | None" default="None">
+  Return image bytes. `True` for PNG, or `"png"`, `"jpeg"`, `"webp"`.
+</ParamField>
+
+<ParamField path="as_base64" type="str | bool | None" default="None">
+  Return as a base64 string.
+</ParamField>
+
+<ParamField path="scroll_to_center" type="bool" default="True">
+  Scroll the element to the center of the viewport before capturing.
+</ParamField>
+
+## Resource saving
+
+### `src()`
+
+Fetch the binary content referenced by the element's `src` or `href` attribute.
+
+```python
+data = img.src()
+data = img.src(base64_to_bytes=False)  # return raw base64 string
+```
+
+<ParamField path="timeout" type="float | None" default="None">
+  Seconds to wait for the resource to load.
+</ParamField>
+
+<ParamField path="base64_to_bytes" type="bool" default="True">
+  Decode base64 data URIs to `bytes`. Set to `False` to receive the raw base64 string.
+</ParamField>
+
+Returns `bytes`, `str`, or `None` if the resource is unavailable.
+
+---
+
+### `save()`
+
+Save the element's resource (`src`/`href` target) to disk.
+
+```python
+path = img.save(path="/tmp", name="image.jpg")
+```
+
+<ParamField path="path" type="str | Path | None" default="None">
+  Directory to save to.
+</ParamField>
+
+<ParamField path="name" type="str | None" default="None">
+  File name. Inferred from the source URL when `None`.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Seconds to wait for the resource.
+</ParamField>
+
+<ParamField path="rename" type="bool" default="True">
+  Rename the file if it already exists to avoid overwriting.
+</ParamField>
+
+Returns the absolute saved file path as `str`.
+
+## JavaScript
+
+### `run_js()`
+
+Execute JavaScript with `this` bound to the element.
+
+```python
+el.run_js("this.style.border = '2px solid red';")
+result = el.run_js("return this.offsetHeight;")
+```
+
+<ParamField path="script" type="str">
+  JavaScript code. `this` refers to the DOM element.
+</ParamField>
+
+<ParamField path="*args" type="any">
+  Additional arguments accessible as `arguments[0]`, `arguments[1]`, etc.
+</ParamField>
+
+<ParamField path="as_expr" type="bool" default="False">
+  Evaluate as an expression rather than a function body.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Script execution timeout.
+</ParamField>
+
+## Element states
+
+Access element state through the `states` property:
+
+```python
+el.states.is_displayed
+el.states.is_enabled
+el.states.is_checked
+el.states.is_selected
+el.states.is_alive
+el.states.is_in_viewport
+el.states.is_covered
+el.states.is_clickable
+el.states.has_rect
+```
+
+<ResponseField name="states.is_displayed" type="bool">
+  `True` if the element is visible (not `display:none`, `visibility:hidden`, or `hidden`).
+</ResponseField>
+
+<ResponseField name="states.is_enabled" type="bool">
+  `True` if the element does not have the `disabled` property set.
+</ResponseField>
+
+<ResponseField name="states.is_checked" type="bool">
+  `True` if a checkbox or radio input is checked.
+</ResponseField>
+
+<ResponseField name="states.is_selected" type="bool">
+  `True` if an `<option>` element is selected.
+</ResponseField>
+
+<ResponseField name="states.is_alive" type="bool">
+  `True` if the element node still exists in the DOM.
+</ResponseField>
+
+<ResponseField name="states.is_in_viewport" type="bool">
+  `True` if the element's click point is within the visible viewport.
+</ResponseField>
+
+<ResponseField name="states.is_whole_in_viewport" type="bool">
+  `True` if the entire bounding box is within the visible viewport.
+</ResponseField>
+
+<ResponseField name="states.is_covered" type="bool | int">
+  `False` if the element is not covered. Returns the `backendNodeId` of the covering element if it is covered.
+</ResponseField>
+
+<ResponseField name="states.is_clickable" type="bool">
+  `True` if the element has a bounding rect, is enabled, is displayed, and has `pointer-events` enabled.
+</ResponseField>
+
+<ResponseField name="states.has_rect" type="list | False">
+  Returns the corner coordinates of the bounding box, or `False` if the element has no layout rect.
+</ResponseField>

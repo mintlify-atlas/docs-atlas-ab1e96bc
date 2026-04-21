@@ -1,0 +1,145 @@
+---
+title: "How to manage multiple browser tabs in DrissionPage"
+description: "Open, retrieve, and close browser tabs without switching focus using DrissionPage's multi-tab API and ChromiumTab objects in parallel."
+---
+
+DrissionPage lets you work with multiple browser tabs simultaneously. Each tab is represented by a `ChromiumTab` object with the same API as `ChromiumPage`, so you can navigate, find elements, and interact with any tab without switching focus away from others.
+
+## Getting tab information
+
+Use the `tabs_count` property to check how many tabs are open, and `tab_ids` to retrieve all tab IDs as a list:
+
+```python
+from DrissionPage import ChromiumPage
+
+page = ChromiumPage()
+print(page.tabs_count)  # e.g. 2
+print(page.tab_ids)     # ['0B300BEA6F1F1F4D5DE406872B79B1AD', 'B838E91F38121B32940B47E8AC59D015']
+```
+
+## Opening a new tab
+
+`page.new_tab()` opens a new tab and returns a `ChromiumTab` object for it. Pass a URL to navigate immediately, or leave it empty to create a blank tab.
+
+```python
+tab = page.new_tab(url='https://example.com')
+tab.ele('#some-element').click()
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `url` | `str` or `None` | `None` | URL to open in the new tab |
+| `new_window` | `bool` | `False` | Open the tab in a new browser window |
+| `background` | `bool` | `False` | Do not activate the new tab |
+| `new_context` | `bool` | `False` | Open in a new incognito context, not sharing cookies |
+
+## Getting a tab object
+
+Use `page.get_tab()` to retrieve a `ChromiumTab` by index or ID. The index starts at `1`; negative numbers count from the end.
+
+```python
+tab = page.get_tab()    # current tab
+tab = page.get_tab(1)   # second tab by index
+tab = page.get_tab('5399F4ADFE3A27503FFAA56390344EE5')  # by ID
+```
+
+<Warning>
+Tab indexes are ordered by activation time, not by visual position in the tab bar.
+</Warning>
+
+### Latest tab
+
+The `latest_tab` property returns the ID of the most recently opened or activated tab. This is useful after clicking a link that opens a new tab:
+
+```python
+ele.click()
+page.wait.new_tab()
+new_tab = page.get_tab(page.latest_tab)
+```
+
+### Finding tabs by title or URL
+
+`find_tabs()` searches for tabs matching a title or URL substring:
+
+```python
+tab_id = page.find_tabs(url='example.com')
+all_tabs = page.find_tabs(single=False)
+```
+
+## Waiting for a new tab
+
+When an action (such as clicking a link) opens a new tab, use `page.wait.new_tab()` to block until the tab appears:
+
+```python
+page.ele('a[target="_blank"]').click()
+page.wait.new_tab()
+new_tab = page.get_tab(page.latest_tab)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `timeout` | `float` or `None` | `None` | Seconds to wait before timing out |
+| `raise_err` | `bool` or `None` | `None` | Raise an error on timeout instead of returning `False` |
+
+## Activating and closing tabs
+
+To bring a tab to the front, call `tab.set.activate()`. To close a tab, call `tab.close()`:
+
+```python
+tab.set.activate()
+tab.close()
+```
+
+To close all tabs except specific ones, use `page.close_other_tabs()`:
+
+```python
+page.close_other_tabs()                       # keep only current tab
+page.close_other_tabs(page.tab_ids[0])        # keep only the first tab by ID
+```
+
+## Multi-tab workflow example
+
+The following example opens each project link from a list page in a new tab, prints its title, then closes the extra tab before continuing:
+
+<Steps>
+  <Step title="Navigate to the listing page">
+    ```python
+    from DrissionPage import ChromiumPage
+
+    page = ChromiumPage()
+    page.get('https://gitee.com/explore/all')
+    ```
+  </Step>
+  <Step title="Iterate over links">
+    Collect the heading elements on the page. Each click opens a new tab.
+
+    ```python
+    links = page.eles('t:h3')
+    ```
+  </Step>
+  <Step title="Process each tab and close it">
+    After clicking a link, wait for the new tab, retrieve its object, read the title, then close it before moving on.
+
+    ```python
+    for link in links[:-1]:
+        link.click()
+        page.wait.new_tab()
+        new_tab = page.get_tab(page.latest_tab)
+        new_tab.wait.load_start()
+        print(new_tab.title)
+        page.close_other_tabs()
+    ```
+  </Step>
+</Steps>
+
+Because DrissionPage does not require focus switching, `page` retains its reference to the listing page throughout the loop. No re-fetching of elements is necessary after each tab closes.
+
+## Multiple instances of the same tab
+
+By default, calling `get_tab()` twice with the same ID returns the same Python object (singleton mode). To allow independent objects for the same tab — useful when one object handles the main flow and another monitors for pop-ups — disable the singleton:
+
+```python
+from DrissionPage.common import Settings
+
+Settings.singleton_tab_obj = False
+```

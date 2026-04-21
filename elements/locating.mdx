@@ -1,0 +1,425 @@
+---
+title: "Locating and finding elements with DrissionPage selectors"
+description: "Use DrissionPage's locator syntax to find elements by id, class, attribute, text, CSS, or XPath — with chaining and relative DOM navigation."
+---
+
+DrissionPage gives every page object and element object two methods — `ele()` and `eles()` — for finding elements. Instead of writing verbose XPath or CSS selectors for every lookup, DrissionPage provides concise locator prefixes that cover the most common cases. You can still pass full CSS selectors and XPath expressions when you need them, and Selenium `By` tuples are accepted too, making migration straightforward.
+
+## `ele()` and `eles()`
+
+`ele()` returns the first matching element. `eles()` returns a list of all matching elements.
+
+```python
+from DrissionPage import ChromiumPage
+
+page = ChromiumPage()
+page.get('https://example.com')
+
+# Returns the first matching element
+button = page.ele('#submit')
+
+# Returns all matching elements as a list
+items = page.eles('tag:li')
+```
+
+Both methods are available on page objects (`ChromiumPage`, `SessionPage`, `WebPage`, and their variants) and on element objects. You can also call an element or page directly as a function — `page('#submit')` is equivalent to `page.ele('#submit')`.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `loc_or_str` | `str` or `tuple` | Required | Locator string or Selenium `By` tuple |
+| `index` | `int` | `1` | Which match to return; negative values count from the end |
+| `timeout` | `float` | `None` | Seconds to wait before giving up; `None` uses the page default (10 s) |
+
+`eles()` accepts the same parameters except `index`, and always returns a list (empty if nothing matches).
+
+<Note>
+  `ele('...', index=2)` is much faster than `eles('...')[1]` because it stops searching once the Nth match is found.
+</Note>
+
+## Locator syntax
+
+The locator string you pass to `ele()` or `eles()` starts with a prefix that controls how the search works. The prefix only has effect at the very beginning of the string.
+
+### Quick-reference table
+
+| Prefix | Meaning | Example |
+|---|---|---|
+| `#` | `id` attribute (exact) | `#login-btn` |
+| `.` | `class` attribute (exact) | `.nav-item` |
+| `@attr=val` | Attribute equals value | `@name=username` |
+| `@attr:val` | Attribute contains value | `@class:active` |
+| `@attr^val` | Attribute starts with value | `@href^https` |
+| `@attr$val` | Attribute ends with value | `@src$.png` |
+| `text=` | Exact text match | `text=Sign in` |
+| `text:` | Fuzzy text match (contains) | `text:Sign` |
+| `tag:` | Tag name | `tag:button` |
+| `css:` | Full CSS selector | `css:div.card > p` |
+| `xpath:` | XPath expression | `xpath://h2[@class="title"]` |
+| `@@` | Match multiple attributes (AND) | `@@name=user@@class:form` |
+| `@\|` | Match multiple attributes (OR) | `@\|id=a@\|id=b` |
+| `@!` | Negate an attribute condition | `@!disabled` |
+
+Simplified shorthand also exists for common prefixes:
+
+| Shorthand | Full form |
+|---|---|
+| `#` | `@id=` |
+| `.` | `@class=` |
+| `t:` | `tag:` |
+| `tx:` | `text:` |
+| `x:` | `xpath:` |
+| `c:` | `css:` |
+
+### `#id` — match by id
+
+```python
+ele = page.ele('#main-content')
+```
+
+The `#` prefix matches the `id` attribute exactly. Fuzzy variations work too:
+
+```python
+# id attribute containing "content"
+ele = page.ele('#:content')
+
+# id attribute starting with "main"
+ele = page.ele('#^main')
+```
+
+### `.class` — match by class
+
+```python
+ele = page.ele('.btn-primary')
+```
+
+When an element has multiple class names, the `.` prefix matches the full `class` string by default. Use `.:` for a fuzzy match on just one of the class names:
+
+```python
+# Exact match: class="btn btn-primary"
+ele = page.ele('.btn btn-primary')
+
+# Fuzzy match: element whose class contains "primary"
+ele = page.ele('.:primary')
+```
+
+### `@attr` — match by attribute
+
+```python
+# Exact match
+ele = page.ele('@name=email')
+
+# Contains
+ele = page.ele('@placeholder:search')
+
+# Element has a "disabled" attribute (value doesn't matter)
+ele = page.ele('@disabled')
+
+# Element has no "disabled" attribute
+ele = page.ele('@!disabled')
+```
+
+### `text` — match by text content
+
+When no prefix is provided, DrissionPage performs a fuzzy text search:
+
+```python
+# Both of these are equivalent — fuzzy text match
+ele = page.ele('Sign in')
+ele = page.ele('text:Sign in')
+
+# Exact text match
+ele = page.ele('text=Sign in')
+```
+
+### `tag:` — match by tag name
+
+```python
+divs = page.eles('tag:div')
+first_input = page.ele('tag:input')
+```
+
+Combine `tag:` with attribute conditions to narrow the match:
+
+```python
+# <button> whose class contains "submit"
+ele = page.ele('tag:button@class:submit')
+
+# <p> whose text is exactly "Hello" and whose class is "greeting"
+ele = page.ele('tag:p@@text()=Hello@@class=greeting')
+```
+
+### `css:` — full CSS selector
+
+```python
+ele = page.ele('css:.card > h2')
+ele = page.ele('css:input[type="email"]')
+```
+
+There is a special extension: `css:>tag` searches for direct children of the current element without needing a full path.
+
+```python
+# Direct child div of ele
+child_div = ele.ele('css:>div')
+```
+
+### `xpath:` — XPath expression
+
+```python
+ele = page.ele('xpath://div[@id="container"]')
+
+# Retrieve an attribute value directly using XPath (returns a string, not an element)
+class_str = ele.ele('xpath://div/@class')
+```
+
+When searching within an element, the leading `.` before `//` is optional — DrissionPage always searches within the element's subtree:
+
+```python
+# These two are equivalent when called on an element
+child = ele.ele('xpath:.//p')
+child = ele.ele('xpath://p')
+```
+
+### Selenium `By` tuples
+
+You can pass a native Selenium locator tuple. This is useful when migrating an existing project:
+
+```python
+from DrissionPage.common import By
+
+ele = page.ele((By.ID, 'username'))
+ele = page.ele((By.XPATH, '//input[@name="email"]'))
+```
+
+## Combining locators with `@@` and `@|`
+
+Use `@@` to require multiple conditions simultaneously (AND):
+
+```python
+# Element where name="user" AND class contains "form"
+ele = page.ele('@@name=user@@class:form')
+
+# div element where class="card" AND text contains "hello"
+ele = page.ele('tag:div@@class=card@@text():hello')
+```
+
+Use `@|` to match any of multiple conditions (OR):
+
+```python
+# Element where id="one" OR id="two"
+ele = page.ele('@|id=one@|id=two')
+```
+
+Use `@!` to negate individual conditions:
+
+```python
+# Element where arg1="abc" AND arg2 is not "def"
+ele = page.ele('@@arg1=abc@!arg2=def')
+```
+
+## Matching modes
+
+Each attribute or text condition supports four matching modes:
+
+| Symbol | Mode | Example |
+|---|---|---|
+| `=` | Exact | `@name=row1` |
+| `:` | Contains (fuzzy) | `@name:row` |
+| `^` | Starts with | `@name^ro` |
+| `$` | Ends with | `@name$w1` |
+
+## Chaining searches
+
+Because `ele()` returns an element object that also has `ele()`, you can chain lookups to narrow down to nested elements:
+
+```python
+# Find a container, then find a child within it
+result = page.ele('#container').ele('.item')
+
+# Equivalent multi-step version
+container = page.ele('#container')
+item = container.ele('.item')
+```
+
+Chaining is also available after `eles()` but requires an index first:
+
+```python
+# Get the second list item, then find a link inside it
+link = page.eles('tag:li')[1].ele('tag:a')
+```
+
+## Tabs — same task in CSS, XPath, and DrissionPage syntax
+
+<Tabs>
+  <Tab title="DrissionPage">
+    ```python
+    # By id
+    page.ele('#submit')
+
+    # By class
+    page.ele('.btn-primary')
+
+    # By text content
+    page.ele('text:Sign in')
+
+    # Tag + attribute
+    page.ele('tag:input@type=email')
+
+    # Multiple attributes
+    page.ele('@@name=user@@class:active')
+    ```
+  </Tab>
+  <Tab title="CSS">
+    ```python
+    page.ele('css:#submit')
+    page.ele('css:.btn-primary')
+    # No direct CSS equivalent for text content
+    page.ele('css:input[type="email"]')
+    page.ele('css:[name="user"][class~="active"]')
+    ```
+  </Tab>
+  <Tab title="XPath">
+    ```python
+    page.ele('xpath://*[@id="submit"]')
+    page.ele('xpath://*[contains(@class,"btn-primary")]')
+    page.ele('xpath://*[contains(text(),"Sign in")]')
+    page.ele('xpath://input[@type="email"]')
+    page.ele('xpath://*[@name="user" and contains(@class,"active")]')
+    ```
+  </Tab>
+</Tabs>
+
+## Relative navigation
+
+Once you have an element, you can navigate the DOM structure around it using relative methods.
+
+### Getting parent elements
+
+```python
+# Immediate parent
+parent = ele.parent()
+
+# Second ancestor
+grandparent = ele.parent(2)
+
+# First ancestor matching a locator
+container = ele.parent('#container')
+```
+
+### Getting child elements
+
+```python
+# First direct child
+first_child = ele.child()
+
+# First direct div child
+first_div = ele.child('tag:div')
+
+# All direct children
+all_children = ele.children()
+
+# All direct p children
+paragraphs = ele.children('tag:p')
+```
+
+### Getting sibling elements
+
+```python
+# First sibling after this element
+next_el = ele.next()
+
+# Third sibling after this element
+third_next = ele.next(3)
+
+# First div sibling after this element
+next_div = ele.next('tag:div')
+
+# All siblings after this element
+following = ele.nexts()
+
+# First sibling before this element
+prev_el = ele.prev()
+
+# All siblings before this element
+preceding = ele.prevs()
+```
+
+### Searching the full document
+
+`after()` and `before()` are not limited to siblings — they search the entire document:
+
+```python
+# First div anywhere after this element in the document
+div_after = ele.after('tag:div')
+
+# Third p anywhere before this element
+p_before = ele.before('tag:p', 3)
+```
+
+### Summary of relative methods
+
+| Method | Description |
+|---|---|
+| `parent()` | Ancestor element |
+| `child()` | First direct child matching a condition |
+| `children()` | All direct children matching a condition |
+| `next()` | First sibling after the element |
+| `nexts()` | All siblings after the element |
+| `prev()` | First sibling before the element |
+| `prevs()` | All siblings before the element |
+| `after()` | First node after the element in the whole document |
+| `afters()` | All nodes after the element in the whole document |
+| `before()` | First node before the element in the whole document |
+| `befores()` | All nodes before the element in the whole document |
+
+## Shadow DOM
+
+Use the `shadow_root` property (or its shorthand `sr`) to enter a shadow root and search within it:
+
+```python
+# Get the shadow root of an element
+shadow = page.ele('#app').shadow_root
+
+# Find elements inside the shadow root
+inner = shadow.ele('tag:div')
+
+# Shorthand: sr works identically to shadow_root
+inner = page.ele('#app').sr.ele('tag:div')
+
+# Chain through multiple shadow root levels
+txt = page.ele('#outer').sr('#inner').sr.ele('tag:p').text
+```
+
+## When an element is not found
+
+`ele()` returns a `NoneElement` when no match is found — it does not raise an exception immediately. A `NoneElement` evaluates to `False` in conditionals, and calling methods on it raises `ElementNotFoundError`.
+
+```python
+ele = page.ele('#might-not-exist')
+
+if not ele:
+    print('Element not found')
+
+# Or catch the error when you try to use it
+try:
+    ele.click()
+except ElementNotFoundError:
+    print('Element not found')
+```
+
+To raise immediately on not found, set the global option once at the start of your script:
+
+```python
+from DrissionPage.common import Settings
+
+Settings.raise_when_ele_not_found = True
+```
+
+Browser element searches have a built-in timeout (10 seconds by default). You can override per-call or per-page:
+
+```python
+# Override per call
+ele = page.ele('tag:button', timeout=5)
+
+# Override for all searches on this page
+page.set.timeouts(base=5)
+```

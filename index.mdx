@@ -1,97 +1,85 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "DrissionPage: Python Web Automation Without WebDriver"
+description: "DrissionPage unifies browser control and HTTP requests in one elegant Python API. No WebDriver, no driver version headaches — just fast, powerful automation."
 ---
 
-## Setting up
+DrissionPage is a Python web automation library that controls Chromium-based browsers via the Chrome DevTools Protocol and sends HTTP requests through `requests` — all from a single, unified API. Unlike Selenium, it requires no WebDriver, supports cross-iframe element search without context switching, and lets you operate multiple tabs simultaneously.
 
-Get your documentation site up and running in minutes.
-
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get from zero to a working automation script in under 5 minutes.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Installation" icon="download" href="/installation">
+    Install DrissionPage via pip and configure your browser path.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Page Objects" icon="browser" href="/pages/chromium-page">
+    Learn about ChromiumPage, SessionPage, and the hybrid WebPage.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Finding Elements" icon="magnifying-glass" href="/elements/locating">
+    Master DrissionPage's concise, powerful element locator syntax.
   </Card>
-</Columns>
+  <Card title="Browser Control" icon="sliders" href="/browser/tabs">
+    Manage tabs, iframes, mouse actions, and network listeners.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/chromium-page">
+    Full reference for all public classes and their methods.
+  </Card>
+</CardGroup>
 
-## Create beautiful pages
+## Why DrissionPage?
 
-Everything you need to create world-class documentation.
+<CardGroup cols={2}>
+  <Card title="No WebDriver" icon="circle-check">
+    Connects directly via Chrome DevTools Protocol. No driver downloads, no version mismatches.
+  </Card>
+  <Card title="Unified browser + HTTP" icon="arrows-left-right">
+    Switch between full browser control and lightweight HTTP requests on the same page object.
+  </Card>
+  <Card title="Cross-iframe search" icon="layer-group">
+    Find elements inside iframes directly — no `switch_to_frame()` gymnastics required.
+  </Card>
+  <Card title="Auto-wait & retry" icon="clock-rotate-left">
+    Built-in waiting and automatic retry makes flaky network conditions manageable.
+  </Card>
+</CardGroup>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+## Getting started
 
-## Need inspiration?
+<Steps>
+  <Step title="Install DrissionPage">
+    ```bash
+    pip install DrissionPage
+    ```
+  </Step>
+  <Step title="Control a browser">
+    ```python
+    from DrissionPage import ChromiumPage
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+    page = ChromiumPage()
+    page.get('https://example.com')
+    print(page.title)
+    ```
+  </Step>
+  <Step title="Find and interact with elements">
+    ```python
+    # Click a button by text content
+    page.ele('text:Submit').click()
+
+    # Fill an input by CSS selector
+    page.ele('#username').input('my_user')
+    ```
+  </Step>
+  <Step title="Or send HTTP requests">
+    ```python
+    from DrissionPage import SessionPage
+
+    page = SessionPage()
+    page.get('https://httpbin.org/get')
+    print(page.json)
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  Use `WebPage` when you need to switch between browser mode and session mode on the same site — great for bypassing login pages while collecting data efficiently.
+</Tip>

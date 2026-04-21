@@ -1,0 +1,781 @@
+---
+title: "ChromiumOptions — browser launch settings reference"
+description: "Configure browser path, user profile, arguments, extensions, proxy, timeouts, and load mode before launching a Chromium-based browser with DrissionPage."
+---
+
+`ChromiumOptions` manages all launch-time configuration for Chromium-based browsers. Create an instance, adjust settings using chainable methods, then pass it to `ChromiumPage` or `WebPage`. Changes made after the browser starts have no effect.
+
+## Constructor
+
+```python
+from DrissionPage import ChromiumOptions
+
+co = ChromiumOptions()
+```
+
+<ParamField path="read_file" type="bool" default="True">
+  Read settings from an INI file on construction. Pass `False` to start from built-in defaults without touching any file on disk — useful when you want to build configuration entirely in code.
+</ParamField>
+
+<ParamField path="ini_path" type="str | Path" default="None">
+  Path to a custom INI file. When `None`, DrissionPage looks for `dp_configs.ini` in the current directory first, then falls back to the built-in `configs.ini` inside the package.
+</ParamField>
+
+<Note>
+All configuration methods return `self`, so you can chain calls together: `co.headless().set_proxy('http://proxy:8080').no_imgs()`.
+</Note>
+
+## Properties
+
+<ResponseField name="browser_path" type="str">
+  Path to the browser executable.
+</ResponseField>
+
+<ResponseField name="user_data_path" type="str">
+  Path to the user data directory (`User Data` folder).
+</ResponseField>
+
+<ResponseField name="address" type="str">
+  Browser debug address in `ip:port` format. Default is `127.0.0.1:9222`.
+</ResponseField>
+
+<ResponseField name="arguments" type="list">
+  List of command-line arguments that will be passed to the browser on launch.
+</ResponseField>
+
+<ResponseField name="extensions" type="list">
+  List of extension paths that will be loaded at startup.
+</ResponseField>
+
+<ResponseField name="preferences" type="dict">
+  User preference settings that will be written to the browser's `Preferences` file.
+</ResponseField>
+
+<ResponseField name="flags" type="dict">
+  Experimental feature flags (`chrome://flags`) to set at launch.
+</ResponseField>
+
+<ResponseField name="load_mode" type="str">
+  Page load strategy. One of `'normal'`, `'eager'`, or `'none'`.
+</ResponseField>
+
+<ResponseField name="timeouts" type="dict">
+  Timeout settings in seconds: `{'base': 10, 'page_load': 30, 'script': 30}`.
+</ResponseField>
+
+<ResponseField name="proxy" type="str">
+  Proxy server string, e.g. `'http://proxy.example.com:8080'`.
+</ResponseField>
+
+<ResponseField name="download_path" type="str">
+  Default directory where downloaded files are saved.
+</ResponseField>
+
+<ResponseField name="user" type="str">
+  Name of the browser profile folder inside `User Data`. Default is `'Default'`.
+</ResponseField>
+
+<ResponseField name="tmp_path" type="str">
+  Temporary folder used when `auto_port()` creates an isolated user data directory.
+</ResponseField>
+
+<ResponseField name="is_headless" type="bool">
+  Whether the browser will launch without a visible window.
+</ResponseField>
+
+<ResponseField name="is_auto_port" type="bool | tuple[int, int]">
+  `False` when disabled. When enabled with a port range, returns the `(start, end)` tuple.
+</ResponseField>
+
+<ResponseField name="is_existing_only" type="bool">
+  Whether the configuration only allows connecting to an already-running browser.
+</ResponseField>
+
+<ResponseField name="system_user_path" type="bool">
+  Whether to use the OS-installed browser's default user data folder.
+</ResponseField>
+
+<ResponseField name="retry_times" type="int">
+  Number of retries when a page connection times out.
+</ResponseField>
+
+<ResponseField name="retry_interval" type="float">
+  Seconds to wait between connection retries.
+</ResponseField>
+
+---
+
+## Browser and path methods
+
+### `set_browser_path()`
+
+Set the path to the browser executable.
+
+```python
+co.set_browser_path(r'C:\Program Files\Google\Chrome\Application\chrome.exe')
+```
+
+<ParamField path="path" type="str | Path" required>
+  Path to the browser executable file.
+</ParamField>
+
+---
+
+### `set_user_data_path()`
+
+Set the user data directory. The browser stores cookies, history, and profile settings here.
+
+```python
+co.set_user_data_path(r'D:\my_browser_profile')
+```
+
+<ParamField path="path" type="str | Path" required>
+  Path to the `User Data` directory.
+</ParamField>
+
+<Tip>
+On Windows, the default Chrome `User Data` directory is at `%USERPROFILE%\AppData\Local\Google\Chrome\User Data`. You can copy this folder to a custom location and point `set_user_data_path()` at it to use an isolated profile.
+</Tip>
+
+---
+
+### `set_user()`
+
+Choose which profile folder inside `User Data` to use. The browser supports multiple named profiles.
+
+```python
+co.set_user('Profile 1')
+```
+
+<ParamField path="user" type="str" default="'Default'">
+  Profile folder name inside the user data directory.
+</ParamField>
+
+---
+
+### `set_local_port()`
+
+Set the local port the browser will listen on for the DevTools protocol. Mutually exclusive with `set_address()` and `auto_port()`.
+
+```python
+co.set_local_port(9333)
+```
+
+<ParamField path="port" type="str | int" required>
+  Port number.
+</ParamField>
+
+---
+
+### `set_address()`
+
+Set the browser's debug address as `ip:port`. Use this to connect to a browser on a remote machine or a non-default local port. Mutually exclusive with `set_local_port()` and `auto_port()`.
+
+```python
+co.set_address('127.0.0.1:9333')
+```
+
+<ParamField path="address" type="str" required>
+  Address in `ip:port` format. Also accepts `ws://` and `wss://` WebSocket URLs.
+</ParamField>
+
+---
+
+### `set_download_path()`
+
+Set the default directory for downloaded files.
+
+```python
+co.set_download_path(r'D:\downloads')
+```
+
+<ParamField path="path" type="str | Path" required>
+  Download directory. Pass `None` to reset to `'.'`.
+</ParamField>
+
+---
+
+### `set_tmp_path()`
+
+Set a directory for temporary files, used when `auto_port()` creates an isolated user data folder.
+
+```python
+co.set_tmp_path(r'D:\tmp')
+```
+
+<ParamField path="path" type="str | Path" required>
+  Path to the temporary directory.
+</ParamField>
+
+---
+
+### `set_cache_path()`
+
+Set the browser cache directory.
+
+```python
+co.set_cache_path(r'D:\browser_cache')
+```
+
+<ParamField path="path" type="str | Path" required>
+  Path to the cache directory.
+</ParamField>
+
+---
+
+### `set_paths()`
+
+Convenience method to set multiple path-related options in one call. Only parameters with non-`None` values are applied.
+
+```python
+co.set_paths(local_port=9333, download_path=r'D:\downloads', user_data_path=r'D:\profile')
+```
+
+<ParamField path="browser_path" type="str | Path" default="None">
+  Path to the browser executable.
+</ParamField>
+
+<ParamField path="local_port" type="str | int" default="None">
+  Local port number.
+</ParamField>
+
+<ParamField path="address" type="str" default="None">
+  Browser address in `ip:port` format. Overrides `local_port` if both are set.
+</ParamField>
+
+<ParamField path="download_path" type="str | Path" default="None">
+  Default download directory.
+</ParamField>
+
+<ParamField path="user_data_path" type="str | Path" default="None">
+  User data directory.
+</ParamField>
+
+<ParamField path="cache_path" type="str | Path" default="None">
+  Browser cache directory.
+</ParamField>
+
+---
+
+### `auto_port()`
+
+Let DrissionPage automatically find a free port and create a temporary user data folder. Each run gets an isolated environment, so browsers started this way never share session data or conflict with each other.
+
+```python
+co.auto_port()                          # pick a free port from the default range
+co.auto_port(scope=(10000, 20000))      # restrict the port range
+co.auto_port(False)                     # disable
+```
+
+<ParamField path="on_off" type="bool" default="True">
+  Enable or disable automatic port allocation.
+</ParamField>
+
+<ParamField path="scope" type="tuple[int, int]" default="None">
+  Port range to search, exclusive of the upper bound. Defaults to `(9600, 59600)`.
+</ParamField>
+
+<Warning>
+`auto_port()` is safe for multithreading. When using multiprocessing, assign non-overlapping `scope` ranges to each process.
+</Warning>
+
+---
+
+### `existing_only()`
+
+Require that the target browser already be running. If DrissionPage cannot connect, it raises an exception instead of launching a new browser.
+
+```python
+co.existing_only()
+```
+
+<ParamField path="on_off" type="bool" default="True">
+  `True` to require an existing browser; `False` to allow launching a new one.
+</ParamField>
+
+---
+
+### `use_system_user_path()`
+
+Use the default user data folder from the system-installed browser instead of specifying a custom path.
+
+```python
+co.use_system_user_path()
+```
+
+<ParamField path="on_off" type="bool" default="True">
+  Enable or disable using the system browser's default user folder.
+</ParamField>
+
+---
+
+## Command-line arguments
+
+### `set_argument()`
+
+Add a Chromium command-line argument. For a complete list of available switches, see the [Chromium command-line reference](https://peter.sh/experiments/chromium-command-line-switches/).
+
+```python
+co.set_argument('--start-maximized')          # flag with no value
+co.set_argument('--window-size', '1280,720')  # flag with a value
+co.set_argument('--headless', False)          # remove the flag
+```
+
+<ParamField path="arg" type="str" required>
+  Argument name including the `--` prefix.
+</ParamField>
+
+<ParamField path="value" type="str | None | bool" default="None">
+  Argument value. Pass `None` for flags that take no value. Pass `False` to remove the argument.
+</ParamField>
+
+---
+
+### `remove_argument()`
+
+Remove a command-line argument from the configuration. Pass only the argument name — the value is matched automatically.
+
+```python
+co.remove_argument('--start-maximized')
+co.remove_argument('--window-size')
+```
+
+<ParamField path="value" type="str" required>
+  Argument name including the `--` prefix.
+</ParamField>
+
+---
+
+### `clear_arguments()`
+
+Remove all command-line arguments that have been set.
+
+```python
+co.clear_arguments()
+```
+
+---
+
+## Extensions
+
+### `add_extension()`
+
+Load a browser extension at startup. You can call this multiple times to load several extensions.
+
+```python
+co.add_extension(r'D:\extensions\SwitchyOmega')
+```
+
+<ParamField path="path" type="str | Path" required>
+  Path to the unpacked extension directory (not a `.crx` file).
+</ParamField>
+
+<Tip>
+For best results, unpack the extension into a folder and point `add_extension()` at that folder.
+</Tip>
+
+---
+
+### `remove_extensions()`
+
+Clear all extension paths from the configuration.
+
+```python
+co.remove_extensions()
+```
+
+---
+
+## Browser preferences
+
+### `set_pref()`
+
+Write an entry to the browser's `Preferences` file. Use this for settings that are not available as command-line arguments.
+
+```python
+co.set_pref('profile.default_content_settings.popups', 0)
+co.set_pref('credentials_enable_service', False)
+```
+
+<ParamField path="arg" type="str" required>
+  Preference key using dot notation.
+</ParamField>
+
+<ParamField path="value" type="any" required>
+  Preference value.
+</ParamField>
+
+---
+
+### `remove_pref()`
+
+Remove a preference entry from the current configuration object. This does not remove entries already written to the browser's `Preferences` file on disk — use `remove_pref_from_file()` for that.
+
+```python
+co.remove_pref('profile.default_content_settings.popups')
+```
+
+<ParamField path="arg" type="str" required>
+  Preference key to remove.
+</ParamField>
+
+---
+
+### `remove_pref_from_file()`
+
+Mark a preference key for deletion from the browser's `Preferences` file. This is the correct method when the key was already persisted by a previous browser session.
+
+```python
+co.remove_pref_from_file('profile.default_content_settings.popups')
+```
+
+<ParamField path="arg" type="str" required>
+  Preference key to delete from the file.
+</ParamField>
+
+---
+
+### `clear_prefs()`
+
+Remove all preference entries from the current configuration object.
+
+```python
+co.clear_prefs()
+```
+
+---
+
+## Experimental flags
+
+### `set_flag()`
+
+Enable or configure a Chrome experimental flag (`chrome://flags`).
+
+```python
+co.set_flag('enable-gpu-rasterization', 'enabled')
+co.set_flag('some-flag', False)  # remove the flag
+```
+
+<ParamField path="flag" type="str" required>
+  Flag name.
+</ParamField>
+
+<ParamField path="value" type="int | str | bool" default="None">
+  Flag value. Pass `False` to remove the flag from the configuration.
+</ParamField>
+
+---
+
+### `clear_flags()`
+
+Remove all experimental flags from the current configuration object.
+
+```python
+co.clear_flags()
+```
+
+---
+
+### `clear_flags_in_file()`
+
+Mark all experimental flags for deletion from the browser's configuration file on the next save.
+
+```python
+co.clear_flags_in_file()
+```
+
+---
+
+## Convenience toggles
+
+### `headless()`
+
+Launch the browser without a visible window.
+
+```python
+co.headless()        # enable (uses --headless=new)
+co.headless(False)   # disable
+```
+
+<ParamField path="on_off" type="bool" default="True">
+  `True` to enable headless mode; `False` to disable.
+</ParamField>
+
+---
+
+### `no_imgs()`
+
+Disable image loading to speed up page loads.
+
+```python
+co.no_imgs()
+co.no_imgs(False)  # re-enable image loading
+```
+
+<ParamField path="on_off" type="bool" default="True">
+  `True` to block images; `False` to allow them.
+</ParamField>
+
+---
+
+### `no_js()`
+
+Disable JavaScript execution.
+
+```python
+co.no_js()
+co.no_js(False)  # re-enable JavaScript
+```
+
+<ParamField path="on_off" type="bool" default="True">
+  `True` to disable JavaScript; `False` to enable.
+</ParamField>
+
+---
+
+### `mute()`
+
+Mute all audio output from the browser.
+
+```python
+co.mute()
+co.mute(False)  # unmute
+```
+
+<ParamField path="on_off" type="bool" default="True">
+  `True` to mute; `False` to unmute.
+</ParamField>
+
+---
+
+### `incognito()`
+
+Launch the browser in incognito (private) mode. Works for both Chrome (`--incognito`) and Edge (`--inprivate`).
+
+```python
+co.incognito()
+```
+
+<ParamField path="on_off" type="bool" default="True">
+  `True` to enable incognito mode; `False` to disable.
+</ParamField>
+
+---
+
+### `ignore_certificate_errors()`
+
+Ignore SSL certificate errors. Useful when testing against a server with a self-signed certificate.
+
+```python
+co.ignore_certificate_errors()
+```
+
+<ParamField path="on_off" type="bool" default="True">
+  `True` to ignore certificate errors; `False` to re-enable certificate validation.
+</ParamField>
+
+---
+
+### `new_env()`
+
+Start the browser in a completely fresh environment with no prior state.
+
+```python
+co.new_env()
+```
+
+<ParamField path="on_off" type="bool" default="True">
+  `True` to use a fresh environment.
+</ParamField>
+
+---
+
+## Network and session settings
+
+### `set_proxy()`
+
+Route browser traffic through a proxy server.
+
+```python
+co.set_proxy('http://proxy.example.com:8080')
+```
+
+<ParamField path="proxy" type="str" required>
+  Proxy URL and port. Authenticated proxies and SOCKS proxies are not supported.
+</ParamField>
+
+<Warning>
+Proxies with embedded credentials (`user:pass@host`) and SOCKS proxies are not supported and will display a warning.
+</Warning>
+
+---
+
+### `set_user_agent()`
+
+Override the browser's `User-Agent` string.
+
+```python
+co.set_user_agent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) ...')
+```
+
+<ParamField path="user_agent" type="str" required>
+  User-Agent string to send with every request.
+</ParamField>
+
+---
+
+### `set_load_mode()`
+
+Control when the browser considers a page "loaded" and releases control back to your code.
+
+```python
+co.set_load_mode('eager')
+```
+
+<ParamField path="value" type="str" required>
+  One of:
+  - `'normal'` — wait for all resources (DOMContentLoaded + load event). Default.
+  - `'eager'` — wait for the DOM to be ready; other resources may still be loading.
+  - `'none'` — return immediately; do not wait for anything.
+</ParamField>
+
+---
+
+### `set_timeouts()`
+
+Set the timeout values used when waiting for pages, scripts, or elements.
+
+```python
+co.set_timeouts(base=15, page_load=60, script=30)
+```
+
+<ParamField path="base" type="float" default="None">
+  Default timeout in seconds, used for element waiting, alert waiting, and `WebPage` session mode connections. Only updated if provided.
+</ParamField>
+
+<ParamField path="page_load" type="float" default="None">
+  Maximum seconds to wait for a page to finish loading. Only updated if provided.
+</ParamField>
+
+<ParamField path="script" type="float" default="None">
+  Maximum seconds to allow a JavaScript call to run. Only updated if provided.
+</ParamField>
+
+---
+
+### `set_retry()`
+
+Configure retry behaviour when a page connection times out.
+
+```python
+co.set_retry(times=5, interval=3)
+```
+
+<ParamField path="times" type="int" default="None">
+  Number of retry attempts. Only updated if provided.
+</ParamField>
+
+<ParamField path="interval" type="float" default="None">
+  Seconds to wait between retries. Only updated if provided.
+</ParamField>
+
+---
+
+## Saving configuration
+
+### `save()`
+
+Persist the current configuration to an INI file so it is loaded automatically next time.
+
+```python
+co.save()                          # save to the file that was read on construction
+co.save(r'D:\configs\my.ini')      # save to a custom path
+co.save('default')                 # save to the built-in package INI file
+```
+
+<ParamField path="path" type="str | Path" default="None">
+  Destination file path. `None` saves to the currently loaded INI file. `'default'` saves to the built-in `configs.ini` inside the package.
+</ParamField>
+
+Returns the absolute path of the saved file as a `str`.
+
+---
+
+### `save_to_default()`
+
+Save configuration to the built-in `configs.ini` inside the DrissionPage package directory. Equivalent to `save('default')`.
+
+```python
+co.save_to_default()
+```
+
+Returns the absolute path of the saved file as a `str`.
+
+<Warning>
+Saving to the default INI file affects every script that uses DrissionPage on the same machine without a custom `ini_path`. Use a custom INI file when you need per-project settings.
+</Warning>
+
+---
+
+## Common usage patterns
+
+### Headless scraping with a proxy
+
+```python
+from DrissionPage import ChromiumOptions, ChromiumPage
+
+co = (
+    ChromiumOptions()
+    .headless()
+    .no_imgs()
+    .mute()
+    .set_proxy('http://proxy.example.com:8080')
+    .set_timeouts(page_load=60)
+)
+
+page = ChromiumPage(co)
+page.get('https://example.com')
+```
+
+### Isolated parallel sessions
+
+```python
+from DrissionPage import ChromiumOptions, ChromiumPage
+import threading
+
+def run(scope):
+    co = ChromiumOptions().auto_port(scope=scope)
+    page = ChromiumPage(co)
+    page.get('https://example.com')
+    page.quit()
+
+t1 = threading.Thread(target=run, args=((10000, 20000),))
+t2 = threading.Thread(target=run, args=((20000, 30000),))
+t1.start(); t2.start()
+t1.join(); t2.join()
+```
+
+### Custom profile with extensions
+
+```python
+from DrissionPage import ChromiumOptions, ChromiumPage
+
+co = (
+    ChromiumOptions()
+    .set_user_data_path(r'D:\profiles\work')
+    .set_user('Profile 1')
+    .add_extension(r'D:\extensions\uBlock')
+    .set_pref('credentials_enable_service', False)
+)
+
+page = ChromiumPage(co)
+```
+
+### Connect to an already-running browser
+
+```python
+from DrissionPage import ChromiumOptions, ChromiumPage
+
+co = ChromiumOptions().set_address('127.0.0.1:9222').existing_only()
+page = ChromiumPage(co)
+```

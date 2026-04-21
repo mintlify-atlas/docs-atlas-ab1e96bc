@@ -1,0 +1,194 @@
+---
+title: "Installing DrissionPage and configuring your browser"
+description: "Install DrissionPage via pip, set your browser executable path, copy config files to your project, and launch a browser from the command line."
+---
+
+DrissionPage is a pure Python package available on PyPI. Installation takes a single command. If you plan to control a browser, you may also need to point DrissionPage at your browser executable — this page covers both.
+
+## System requirements
+
+- **Python**: 3.6 or above
+- **Operating system**: Windows, Linux, or macOS
+- **Browser** (for browser control only): Any Chromium-based browser — Chrome, Edge, or an Electron application
+
+<Note>
+  If you only need to send and receive HTTP data packets using `SessionPage`, no browser is required.
+</Note>
+
+## Install or upgrade
+
+<Steps>
+  <Step title="Install DrissionPage">
+    <CodeGroup>
+
+    ```bash pip
+    pip install DrissionPage
+    ```
+
+    ```bash pip3
+    pip3 install DrissionPage
+    ```
+
+    </CodeGroup>
+  </Step>
+
+  <Step title="Verify the installation">
+    ```bash
+    python -c "import DrissionPage; print(DrissionPage.__version__)"
+    ```
+
+    If you see a version number, the package installed correctly.
+  </Step>
+
+  <Step title="Try launching a browser">
+    DrissionPage automatically searches common system paths for Chrome. Run this quick test:
+
+    ```python
+    from DrissionPage import ChromiumPage
+
+    page = ChromiumPage()
+    page.get('https://DrissionPage.cn')
+    ```
+
+    If a browser opens and loads the page, you are done. If you get an error about a missing browser path, continue to the next section.
+  </Step>
+</Steps>
+
+## Upgrade to a newer version
+
+<CodeGroup>
+
+```bash Latest stable
+pip install DrissionPage --upgrade
+```
+
+```bash Specific version
+pip install DrissionPage==4.0.0b17
+```
+
+</CodeGroup>
+
+## Configure your browser path
+
+If DrissionPage cannot find your browser automatically, you need to tell it where the executable is. The path is stored in DrissionPage's INI configuration file and reused on every subsequent run — you only need to set it once.
+
+**Finding your browser path**: Open the browser and navigate to `chrome://version` (or `edge://version`). The executable path appears at the top of the page under "Executable Path".
+
+### Using the CLI
+
+The `dp` command-line tool ships with DrissionPage and provides the fastest way to configure settings:
+
+```bash
+dp -p "/path/to/your/chrome"
+```
+
+Examples by platform:
+
+<CodeGroup>
+
+```bash Windows
+dp -p "C:\Program Files\Google\Chrome\Application\chrome.exe"
+```
+
+```bash macOS
+dp -p "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+```
+
+```bash Linux
+dp -p "/usr/bin/google-chrome"
+```
+
+</CodeGroup>
+
+<Warning>
+  Make sure the terminal is using the same Python environment as your project. Run `which python` (macOS/Linux) or `where python` (Windows) to confirm.
+</Warning>
+
+### Using Python
+
+Set the path in a Python script and save it to the configuration file:
+
+```python
+from DrissionPage import ChromiumOptions
+
+ChromiumOptions().set_browser_path(r'C:\Program Files\Google\Chrome\Application\chrome.exe').save()
+```
+
+To test a path without saving it, pass the options object directly to `ChromiumPage`:
+
+```python
+from DrissionPage import ChromiumPage, ChromiumOptions
+
+co = ChromiumOptions().set_browser_path(r'C:\Program Files\Google\Chrome\Application\chrome.exe')
+page = ChromiumPage(co)
+page.get('https://DrissionPage.cn')
+```
+
+## Set a custom user data directory
+
+Browser profiles (cookies, extensions, settings) are stored in a user data directory. To point DrissionPage at a specific profile:
+
+```bash
+dp -u "/path/to/user/data"
+```
+
+Or in Python:
+
+```python
+from DrissionPage import ChromiumOptions
+
+ChromiumOptions().set_user_data_path('/path/to/user/data').save()
+```
+
+## Copy the default config file to your project
+
+By default, DrissionPage reads its INI configuration file from a global location. If you want per-project configuration — for example, different browser paths in different projects — copy the default config to your current working directory:
+
+```bash
+dp -c
+```
+
+DrissionPage will prefer a `dp_configs.ini` file in the current directory over the global one.
+
+<Tip>
+  When packaging your application with PyInstaller or similar tools, you must either write all configuration in code or manually copy `dp_configs.ini` to the packaged executable's directory. The global INI file is not included automatically.
+</Tip>
+
+## Launch a browser from the command line
+
+You can start a browser on a specific debugging port using `dp -l`. DrissionPage will then connect to that port instead of launching a new instance:
+
+```bash
+# Launch on port 9222 (default debugging port)
+dp -l 9222
+
+# Launch on port 9333
+dp -l 9333
+
+# Launch on the port stored in your config file
+dp -l 0
+```
+
+Then connect from Python:
+
+```python
+from DrissionPage import ChromiumPage
+
+# Connect to the browser already running on port 9222
+page = ChromiumPage(9222)
+```
+
+<Note>
+  Attaching to a running browser is especially useful during development — you can inspect the page manually in the same browser window that DrissionPage is controlling.
+</Note>
+
+## CLI reference
+
+All `dp` options at a glance:
+
+| Flag | Long form | Description |
+|---|---|---|
+| `-p PATH` | `--set-browser-path PATH` | Save the browser executable path to the config file |
+| `-u PATH` | `--set-user-path PATH` | Save the user data directory path to the config file |
+| `-c` | `--configs-to-here` | Copy the default config file to the current directory |
+| `-l PORT` | `--launch-browser PORT` | Launch a browser on the given port (`0` uses the config value) |

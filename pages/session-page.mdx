@@ -1,0 +1,222 @@
+---
+title: "SessionPage — fast HTTP requests with DrissionPage"
+description: "SessionPage sends HTTP requests using Python's requests library — no browser needed. Scrape HTML pages and JSON APIs with the same element-finding API."
+---
+
+`SessionPage` makes HTTP requests using Python's `requests` library under the hood. There is no browser involved, which makes it much faster and lighter than browser-based automation. Despite this, it exposes the same `ele()` and `eles()` element-finding API as `ChromiumPage`, so you can search parsed HTML with familiar locators rather than reaching for a separate parsing library.
+
+## Creating an instance
+
+<Tabs>
+  <Tab title="Default (read from config)">
+    The simplest approach. DrissionPage reads session settings from its ini configuration file.
+
+    ```python
+    from DrissionPage import SessionPage
+
+    page = SessionPage()
+    ```
+  </Tab>
+  <Tab title="With SessionOptions">
+    Use `SessionOptions` to configure the session before any requests are made — for example to set a proxy, custom headers, or SSL behaviour.
+
+    ```python
+    from DrissionPage import SessionPage, SessionOptions
+
+    so = SessionOptions().set_proxies(http='http://127.0.0.1:1080')
+    page = SessionPage(session_or_options=so)
+    ```
+  </Tab>
+  <Tab title="Sharing a session">
+    Pass an existing `Session` object to share state (cookies, headers) between multiple page objects.
+
+    ```python
+    from DrissionPage import SessionPage
+
+    page1 = SessionPage()
+    page2 = SessionPage(session_or_options=page1.session)
+    ```
+  </Tab>
+</Tabs>
+
+### Constructor parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `session_or_options` | `Session` \| `SessionOptions` | `None` | An existing `Session` object or a `SessionOptions` configuration. `None` reads from the ini file. |
+| `timeout` | `float` | `None` | Connection timeout in seconds. `None` reads from the ini file (default 10). |
+
+## Making requests
+
+### `get(url)`
+
+Sends a GET request and stores the response internally. Returns `True` if the request succeeds.
+
+```python
+page.get('https://httpbin.org/get')
+```
+
+Pass extra keyword arguments directly to `requests`:
+
+```python
+page.get(
+    'https://httpbin.org/get',
+    headers={'X-Custom': 'value'},
+    params={'q': 'drissionpage'},
+    timeout=5,
+)
+```
+
+`get()` also accepts local file paths, which is useful for parsing HTML files on disk:
+
+```python
+page.get(r'C:\data\page.html')
+```
+
+### `post(url)`
+
+Sends a POST request. Accepts form data or JSON in several formats:
+
+```python
+# form-encoded body
+page.post('https://httpbin.org/post', data={'key': 'value'})
+
+# JSON body
+page.post('https://httpbin.org/post', json={'key': 'value'})
+```
+
+### Other HTTP methods
+
+`get()` and `post()` cover the most common cases. For `PUT`, `PATCH`, `DELETE`, `HEAD`, or `OPTIONS` requests, access the underlying `Session` object directly:
+
+```python
+session = page.session
+response = session.put('https://httpbin.org/put', json={'key': 'value'})
+response = session.delete('https://httpbin.org/delete')
+```
+
+## Reading the response
+
+After a successful request, several properties expose the response content:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `page.url` | `str` | The final URL after any redirects |
+| `page.title` | `str` | Text content of the `<title>` element, or `None` |
+| `page.html` | `str` | Response body decoded as text |
+| `page.json` | `dict` | Response body parsed as JSON, or `None` if parsing fails |
+| `page.raw_data` | `bytes` | Raw response bytes |
+| `page.response` | `Response` | The underlying `requests.Response` object |
+
+```python
+page.get('https://httpbin.org/json')
+print(page.json)          # {'slideshow': {'author': 'Yours Truly', ...}}
+print(page.response.status_code)  # 200
+```
+
+## Finding elements in HTML
+
+Once a page has been fetched, you can search its HTML using exactly the same locator API available on `ChromiumPage`:
+
+```python
+page.get('https://example.com')
+
+# single element
+heading = page.ele('tag:h1')
+print(heading.text)
+
+# all matching elements
+links = page.eles('tag:a')
+for link in links:
+    print(link.text, link.attr('href'))
+```
+
+See [finding elements](/elements/locating) for the full locator syntax.
+
+## Setting headers and cookies
+
+Use the `set` object to configure global request settings that apply to all subsequent requests:
+
+```python
+# replace all headers
+page.set.headers({'User-Agent': 'MyBot/1.0', 'Accept-Language': 'en'})
+
+# update a single header item
+page.set.header('Accept-Language', 'zh-CN')
+
+# set cookies
+page.set.cookies({'session_id': 'abc123'})
+
+# set a proxy
+page.set.proxies(http='http://127.0.0.1:8080')
+
+# set timeout globally
+page.set.timeout(30)
+```
+
+## Practical examples
+
+### Scraping an HTML page
+
+```python
+from DrissionPage import SessionPage
+
+page = SessionPage()
+page.get('https://example.com/articles')
+
+articles = page.eles('css:.article-title')
+for article in articles:
+    print(article.text)
+```
+
+### Calling a JSON API
+
+```python
+from DrissionPage import SessionPage
+
+page = SessionPage()
+page.get('https://api.github.com/repos/g1879/DrissionPage')
+
+data = page.json
+print(data['stargazers_count'])
+```
+
+### Authenticated POST request
+
+```python
+from DrissionPage import SessionPage
+
+page = SessionPage()
+
+# log in
+page.post('https://example.com/login', data={
+    'username': 'alice',
+    'password': 'secret',
+})
+
+# the session now carries the login cookies
+page.get('https://example.com/dashboard')
+print(page.title)
+```
+
+## Configuration
+
+| Property | Description |
+|----------|-------------|
+| `page.timeout` | Connection timeout in seconds (default 10). Assignable. |
+| `page.retry_times` | Number of retries on failure (default 3). Assignable. |
+| `page.retry_interval` | Seconds to wait between retries (default 2). Assignable. |
+
+```python
+page.timeout = 30
+page.retry_times = 5
+page.retry_interval = 3
+```
+
+## Closing the session
+
+```python
+page.close()
+```
+
+This closes the underlying `Session` and the stored `Response` object.

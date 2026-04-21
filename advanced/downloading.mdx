@@ -1,0 +1,196 @@
+---
+title: "Downloading files with DrissionPage browser and session mode"
+description: "Download files by clicking links or using direct URLs, set save paths per tab, rename files, handle conflicts, and wait for completion."
+---
+
+DrissionPage offers two complementary download approaches: browser-managed downloads that intercept whatever the browser triggers, and direct `download()` calls that fetch a URL through a requests-based session. Both let you control the save path, handle filename conflicts, and monitor progress.
+
+## Setting the download path
+
+Browser download management is not active by default. It activates the moment you set a download path. Set it on the page object before triggering any downloads.
+
+```python
+from DrissionPage import ChromiumPage
+
+page = ChromiumPage()
+page.set.download_path('/tmp/downloads')
+```
+
+Each tab can have its own path. Tabs created after a page-level path is set will inherit it automatically:
+
+```python
+tab1 = page.get_tab(page.tabs[1])
+tab1.set.download_path('/tmp/tab1_downloads')
+
+tab2 = page.get_tab(page.tabs[2])
+tab2.set.download_path('/tmp/tab2_downloads')
+```
+
+<Warning>
+  When working with multiple tabs, always set a download path on the `page`
+  object as a staging directory in addition to per-tab paths. Downloads
+  triggered by tabs that are not directly controlled will use the page-level
+  path.
+</Warning>
+
+---
+
+## Typical download workflow
+
+<Steps>
+  <Step title="Set the download path">
+    ```python
+    from DrissionPage import ChromiumPage
+
+    page = ChromiumPage()
+    page.set.download_path('/tmp/downloads')
+    ```
+  </Step>
+  <Step title="Optionally pre-set the filename">
+    Set a name before clicking. The extension is added automatically from the downloaded file, so you can omit it.
+
+    ```python
+    page.set.download_file_name('report')
+    ```
+  </Step>
+  <Step title="Trigger the download">
+    Click the link or button that starts the download.
+
+    ```python
+    page('#download-btn').click()
+    ```
+  </Step>
+  <Step title="Wait for the download to begin">
+    The browser needs a moment to start the task.
+
+    ```python
+    mission = page.wait.download_begin()
+    ```
+  </Step>
+  <Step title="Wait for completion and get the saved path">
+    ```python
+    page.wait.downloads_done()
+
+    print(mission.final_path)  # full path to the saved file
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Waiting for downloads
+
+### Wait for a download to start
+
+`wait.download_begin()` blocks until the browser begins a download. It returns a `DownloadMission` object you can use to track progress.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `timeout` | `float` | page timeout | Seconds to wait before giving up |
+| `cancel_it` | `bool` | `False` | Cancel the task when caught (useful for intercepting) |
+
+```python
+mission = page.wait.download_begin()
+print(mission.url)   # download URL
+print(mission.name)  # file name
+```
+
+### Wait for all tab downloads to finish
+
+```python
+page.wait.downloads_done()           # waits indefinitely
+page.wait.downloads_done(timeout=60) # fails after 60 seconds
+```
+
+### Wait for all browser downloads to finish
+
+Call this on the `page` object (not a `tab`) to wait across every open tab:
+
+```python
+page.wait.all_downloads_done()
+page.wait.all_downloads_done(timeout=120, cancel_if_timeout=True)
+```
+
+---
+
+## Monitoring progress
+
+The `DownloadMission` object returned by `wait.download_begin()` provides real-time status:
+
+| Attribute | Type | Description |
+|---|---|---|
+| `url` | `str` | URL of the download |
+| `name` | `str` | Current filename |
+| `path` | `str` | Save directory |
+| `state` | `str` | `'running'`, `'done'`, `'canceled'`, or `'skipped'` |
+| `total_bytes` | `int` | Total file size in bytes |
+| `received_bytes` | `int` | Bytes downloaded so far |
+| `final_path` | `str` or `None` | Full path after completion (only set when done) |
+| `is_done` | `bool` | Whether the task has finished |
+| `rate` | `float` | Completion percentage |
+
+Print a real-time progress indicator:
+
+```python
+mission = page.wait.download_begin()
+
+while not mission.is_done:
+    print(f'\r{mission.rate:.1f}%', end='', flush=True)
+
+print(f'\nSaved to: {mission.final_path}')
+```
+
+---
+
+## Handling same-name files
+
+Configure what happens when a file already exists at the destination:
+
+```python
+page.set.when_download_file_exists('rename')     # append _1, _2, ... (default)
+page.set.when_download_file_exists('overwrite')  # replace the existing file
+page.set.when_download_file_exists('skip')       # cancel the download
+```
+
+You can also use the short forms `'r'`, `'o'`, and `'s'`.
+
+---
+
+## Intercepting downloads
+
+Cancel a download as soon as it starts and handle it yourself — for example, to download the file via the session layer with custom headers:
+
+```python
+page('t:a').click()
+data = page.wait.download_begin(cancel_it=True)
+
+# data is the DownloadMission object; use its URL with the direct downloader
+page.download(data.url, save_path='/tmp/downloads')
+```
+
+---
+
+## Direct downloads with `download()`
+
+The `download()` method fetches a URL through the built-in DownloadKit tool (backed by `requests`). Cookies from the page are synchronized automatically.
+
+```python
+from DrissionPage import SessionPage
+
+page = SessionPage()
+result = page.download('https://example.com/file.zip', '/tmp/downloads')
+print(result)  # ('success', '/tmp/downloads/file.zip')
+```
+
+For concurrent downloads, use `download.add()`:
+
+```python
+page.download.add('https://example.com/file1.pdf', '/tmp/downloads')
+page.download.add('https://example.com/file2.pdf', '/tmp/downloads')
+```
+
+<Note>
+  `download()` uses the `requests` library and does not go through the browser.
+  If the server requires specific browser-level cookies or headers beyond what
+  is synced automatically, use the browser download approach instead.
+</Note>

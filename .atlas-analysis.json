@@ -1,28 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "name": "DrissionPage",
+  "projectType": "sdk-library",
+  "projectName": "DrissionPage",
+  "projectDescription": "A Python web automation library that unifies browser control and HTTP requests into a single elegant API, eliminating the need for WebDriver.",
   "theme": "luma",
-  "colors": {
-    "primary": "#7c7c7c",
-    "light": "#0a0a0a",
-    "dark": "#c7c7c7"
-  },
-  "favicon": "https://media.brand.dev/8939974e-e3b1-425a-bacd-5f1d9236f45b.png",
-  "logo": {
-    "light": "https://media.brand.dev/e2da78f1-7a9e-43c5-b87a-1247b0996129.png",
-    "dark": "https://media.brand.dev/e2da78f1-7a9e-43c5-b87a-1247b0996129.png"
-  },
-  "navbar": {
-    "primary": {
-      "type": "github",
-      "href": "https://github.com/g1879/DrissionPage"
-    }
-  },
-  "footer": {
-    "socials": {
-      "github": "https://github.com/g1879/DrissionPage"
-    }
-  },
+  "primaryColor": "#7c7c7c",
+  "lightColor": "#0a0a0a",
+  "darkColor": "#c7c7c7",
   "navigation": {
     "tabs": [
       {
@@ -97,5 +80,31 @@
         ]
       }
     ]
-  }
+  },
+  "keyFeatures": [
+    "Unified API for both browser automation and HTTP requests",
+    "No WebDriver dependency — uses Chrome DevTools Protocol directly",
+    "Cross-iframe element search without context switching",
+    "Multi-tab operation without tab switching",
+    "Built-in auto-wait and retry mechanisms",
+    "INI-file based persistent configuration",
+    "Integrated download management via DownloadKit",
+    "Full-page screenshots including off-viewport content",
+    "Shadow-root element support",
+    "POM (Page Object Model) friendly design"
+  ],
+  "publicApiSurface": [
+    "Chromium",
+    "ChromiumPage",
+    "SessionPage",
+    "WebPage",
+    "ChromiumOptions",
+    "SessionOptions",
+    "ChromiumElement",
+    "SessionElement",
+    "ChromiumTab",
+    "MixTab",
+    "ChromiumFrame",
+    "dp (CLI entrypoint)"
+  ]
 }

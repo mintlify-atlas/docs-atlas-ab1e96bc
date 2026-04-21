@@ -1,0 +1,152 @@
+---
+title: "Exception reference and error handling in DrissionPage"
+description: "Reference for all DrissionPage exceptions with descriptions, try/except patterns, and global settings that control when errors are raised automatically."
+---
+
+DrissionPage defines a set of specific exceptions so you can handle failure cases precisely. By default, most operations return a sentinel value (`False` or `NoneElement`) instead of raising on failure. You can opt into stricter behavior globally through `Settings`, or per-call via the `raise_err` parameter.
+
+## Importing exceptions
+
+All exceptions are in `DrissionPage.errors`:
+
+```python
+from DrissionPage.errors import ElementNotFoundError, WaitTimeoutError
+# or import everything at once
+from DrissionPage.errors import *
+```
+
+---
+
+## Exception reference
+
+| Exception | When it is raised |
+|---|---|
+| `ElementNotFoundError` | An element could not be found within the timeout period |
+| `AlertExistsError` | A JS operation or CDP call is blocked by an unhandled alert dialog |
+| `ContextLostError` | An element or page method is called after the page has been refreshed or navigated away |
+| `ElementLostError` | A held element reference has become stale because the element was refreshed or removed |
+| `CDPError` | The Chrome DevTools Protocol returned an error |
+| `PageDisconnectedError` | A method is called on a page that has been closed or disconnected |
+| `JavaScriptError` | JavaScript execution produced a runtime error |
+| `NoRectError` | Position or size information was requested for an element that has none (hidden or detached) |
+| `BrowserConnectError` | DrissionPage could not connect to the browser |
+| `NoResourceError` | A resource could not be fetched (e.g. `ele.get_src()` or `ele.save()` failed) |
+| `CanNotClickError` | A click operation failed on a non-clickable element (only raised when enabled) |
+| `GetDocumentError` | Retrieving the page document failed |
+| `WaitTimeoutError` | A wait operation timed out (only raised when enabled) |
+| `IncorrectURLError` | A URL with an invalid format was passed |
+| `StorageError` | A storage operation was blocked by the website |
+| `CookieFormatError` | A cookie with an invalid format was passed to the library |
+| `TargetNotFoundError` | The requested browser target (tab, frame, etc.) does not exist |
+| `LocatorError` | A locator expression could not be parsed |
+
+---
+
+## Handling errors
+
+### Catching specific exceptions
+
+```python
+from DrissionPage import ChromiumPage
+from DrissionPage.errors import ElementNotFoundError, WaitTimeoutError
+
+page = ChromiumPage()
+page.get('https://example.com')
+
+try:
+    ele = page.ele('#submit-btn', timeout=5)
+    ele.click()
+except ElementNotFoundError:
+    print('submit button not found')
+```
+
+```python
+from DrissionPage.errors import ContextLostError, PageDisconnectedError
+
+try:
+    ele.click()
+except ContextLostError:
+    # page navigated away while we held the element reference
+    page.wait.doc_loaded()
+    ele = page.ele('#submit-btn')
+except PageDisconnectedError:
+    print('the browser tab was closed')
+```
+
+### Using `raise_err=False`
+
+Most wait methods and some find methods accept a `raise_err` parameter. When set to `False`, a timeout returns `False` instead of raising:
+
+```python
+result = page.wait.ele_displayed('#status', timeout=5, raise_err=False)
+if result is False:
+    # element never appeared — handle gracefully
+    page.refresh()
+```
+
+### Catching stale element errors
+
+When a page refreshes, element references from before the refresh become invalid:
+
+```python
+from DrissionPage.errors import ContextLostError, ElementLostError
+
+try:
+    old_ele.text
+except (ContextLostError, ElementLostError):
+    # re-find the element after the page update
+    old_ele = page.ele('#my-element')
+    print(old_ele.text)
+```
+
+### Handling browser connection issues
+
+```python
+from DrissionPage import ChromiumPage
+from DrissionPage.errors import BrowserConnectError
+
+try:
+    page = ChromiumPage()
+except BrowserConnectError as e:
+    print(f'Could not connect to browser: {e}')
+    # start a new browser instance or exit
+```
+
+---
+
+## Global error settings
+
+`Settings` provides three flags that change default behavior for the entire session. Set these once before creating any page objects.
+
+```python
+from DrissionPage.common import Settings
+
+Settings.raise_when_ele_not_found = True   # raise ElementNotFoundError instead of returning NoneElement
+Settings.raise_when_click_failed = True    # raise CanNotClickError instead of returning False
+Settings.raise_when_wait_failed = True     # raise WaitTimeoutError instead of returning False
+```
+
+With `raise_when_ele_not_found = True`, every failed element lookup becomes an exception:
+
+```python
+from DrissionPage import SessionPage
+from DrissionPage.common import Settings
+from DrissionPage.errors import ElementNotFoundError
+
+Settings.raise_when_ele_not_found = True
+
+page = SessionPage()
+page.get('https://example.com')
+
+try:
+    ele = page('#nonexistent')
+except ElementNotFoundError as e:
+    print(e)
+```
+
+<Note>
+  Individual `raise_err` parameters on wait methods take precedence over the
+  global `Settings.raise_when_wait_failed` value. Passing `raise_err=False`
+  to a specific call will suppress the exception even if the global setting is
+  `True`.
+</Note>

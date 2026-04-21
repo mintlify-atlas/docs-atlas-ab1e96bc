@@ -1,0 +1,136 @@
+---
+title: "How to work with iframes and frames in DrissionPage"
+description: "Find and interact with iframe content in DrissionPage without context switching, including cross-domain frames and deeply nested iframes."
+---
+
+DrissionPage treats `<iframe>` elements as regular page objects — no `switch_to` calls required. You can search for elements across iframe boundaries, navigate inside a frame independently, and operate inside and outside a frame at the same time.
+
+## Getting a frame object
+
+The recommended way to get a `ChromiumFrame` is `page.get_frame()`. Unlike retrieving an iframe as a plain element, `get_frame()` returns an object with correct IDE type hints.
+
+```python
+iframe = page.get_frame('#sss')         # by locator
+iframe = page.get_frame(1)              # by index (starts at 1)
+```
+
+You can also locate an iframe as a normal element and wrap it:
+
+```python
+ele = page('#sss')
+iframe = page.get_frame(ele)
+```
+
+### `get_frame()` parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `loc_ind_ele` | `str`, `int`, or `ChromiumFrame` | Required | Locator, index, element object, `id` attribute, or `name` attribute |
+| `timeout` | `float` or `None` | `None` | Timeout in seconds; uses the page timeout if `None` |
+
+### Getting multiple frames
+
+Use `page.get_frames()` to retrieve all frames (or those matching a locator) as a list:
+
+```python
+frames = page.get_frames()
+```
+
+<Warning>
+When a page contains nested iframes, retrieving by index may return unexpected results. Use a locator or ID when precision matters.
+</Warning>
+
+## Finding elements inside a frame
+
+Once you have a `ChromiumFrame` object, call `.ele()` and `.eles()` on it just as you would on a page:
+
+```python
+ele = iframe.ele('tag:a')
+print(ele)
+```
+
+## Cross-frame element search
+
+If the iframe's URL shares the same domain as the main page, you can search for elements inside it directly from the page object — no need to obtain the frame first:
+
+```python
+# Finds the element even if it is nested inside an iframe
+ele = page.ele('@data-id=index')
+```
+
+Cross-frame search works regardless of how deeply the element is nested, as long as all frames share the same domain.
+
+<Note>
+If the iframe is on a different domain from the main page, you must obtain the `ChromiumFrame` object first and then search inside it.
+</Note>
+
+## Navigating inside a frame
+
+`ChromiumFrame` supports `get()` and `refresh()` to navigate within the frame itself:
+
+```python
+iframe.get('https://example.com/other-page')
+iframe.refresh()
+```
+
+## `ChromiumFrame` properties
+
+`ChromiumFrame` is both an element and a page. It exposes element-level attributes like `tag`, `html`, `attrs`, and `xpath`, as well as page-level properties:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `url` | `str` | Current URL of the frame |
+| `title` | `str` | Current title of the frame page |
+| `cookies` | `dict` | Cookies for the frame |
+| `active_ele` | `ChromiumElement` | Element currently holding focus |
+| `states.is_loading` | `bool` | Whether the frame is loading |
+| `states.is_alive` | `bool` | Whether the frame element is still in the DOM |
+| `states.ready_state` | `str` | `'connecting'`, `'loading'`, `'interactive'`, or `'complete'` |
+
+### Position and size
+
+```python
+iframe.rect.location          # (x, y) of top-left corner in the page
+iframe.rect.viewport_location # (x, y) of top-left corner in the viewport
+iframe.rect.size              # (width, height) of the frame content
+```
+
+### Running JavaScript
+
+Use `run_js()` to execute JavaScript inside the frame's context:
+
+```python
+result = iframe.run_js('return document.title;')
+```
+
+## Real example: click a button inside an iframe
+
+<Steps>
+  <Step title="Open the page">
+    ```python
+    from DrissionPage import ChromiumPage
+
+    page = ChromiumPage()
+    page.get('https://www.runoob.com/try/try.php?filename=tryhtml_iframe')
+    ```
+  </Step>
+  <Step title="Get the inner frame">
+    The result page embeds a frame with `id="iframeResult"` which itself contains a frame with `id="sss"`.
+
+    ```python
+    outer = page.get_frame('#iframeResult')
+    inner = outer.get_frame('#sss')
+    ```
+  </Step>
+  <Step title="Find and interact with an element inside the frame">
+    ```python
+    link = inner.ele('tag:a')
+    print(link.attr('href'))
+    link.click()
+    ```
+  </Step>
+</Steps>
+
+## Shadow DOM
+
+DrissionPage can access non-open shadow-root elements directly. Elements inside a shadow root are located with the same locator syntax as regular elements — no special API is needed.

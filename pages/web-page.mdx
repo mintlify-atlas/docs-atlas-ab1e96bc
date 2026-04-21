@@ -1,0 +1,170 @@
+---
+title: "WebPage — hybrid browser and HTTP automation in one object"
+description: "WebPage combines ChromiumPage and SessionPage in one object. Switch between browser and HTTP mode on the fly, with automatic cookie syncing."
+---
+
+`WebPage` combines `ChromiumPage` and `SessionPage` into a single object. It can drive a real browser (`d` mode) or send raw HTTP requests (`s` mode), and you can switch between the two at any time. Cookies are automatically synchronised when you switch, so the session in each mode stays in sync without any manual work.
+
+This hybrid design is particularly useful for workflows that are hard to handle with one approach alone — for example, completing a complex login in the browser and then switching to the faster HTTP mode to collect data.
+
+## Creating an instance
+
+<Tabs>
+  <Tab title="Browser mode (d)">
+    Start in `d` mode (the default) to control a real browser. The browser is started or connected the same way as `ChromiumPage`.
+
+    ```python
+    from DrissionPage import WebPage
+
+    page = WebPage()        # d mode by default
+    page.get('https://example.com')
+    ```
+  </Tab>
+  <Tab title="Session mode (s)">
+    Start in `s` mode when you only need HTTP requests and want to avoid launching a browser at all.
+
+    ```python
+    from DrissionPage import WebPage
+
+    page = WebPage('s')
+    page.get('https://example.com')
+    print(page.title)
+    ```
+  </Tab>
+  <Tab title="With options">
+    Pass `ChromiumOptions` and/or `SessionOptions` to configure each mode individually.
+
+    ```python
+    from DrissionPage import WebPage, ChromiumOptions, SessionOptions
+
+    co = ChromiumOptions().set_browser_path(r'D:\chrome.exe')
+    so = SessionOptions().set_proxies(http='http://127.0.0.1:1080')
+
+    page = WebPage(chromium_options=co, session_or_options=so)
+    ```
+  </Tab>
+</Tabs>
+
+### Constructor parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `mode` | `str` | `'d'` | Initial mode: `'d'` for browser, `'s'` for HTTP session. |
+| `chromium_options` | `ChromiumOptions` \| `False` | `None` | Browser configuration. `None` reads from the ini file. Pass `False` if you will never use `d` mode (avoids packaging errors). |
+| `session_or_options` | `Session` \| `SessionOptions` \| `False` | `None` | Session configuration. `None` reads from the ini file. Pass `False` if you will never use `s` mode. |
+
+## Checking and switching modes
+
+`page.mode` returns the current mode as a string (`'d'` or `'s'`).
+
+```python
+print(page.mode)  # 'd'
+```
+
+### `change_mode()`
+
+Switches to the other mode. By default, cookies are copied and the page navigates to the URL from the previous mode.
+
+```python
+page.change_mode()        # toggle to the opposite mode
+page.change_mode('s')     # switch to s mode explicitly
+page.change_mode('d')     # switch to d mode explicitly
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `mode` | `str` \| `None` | `None` | Target mode (`'d'` or `'s'`). `None` toggles the current mode. |
+| `go` | `bool` | `True` | Whether to navigate to the previous mode's URL after switching. |
+| `copy_cookies` | `bool` | `True` | Whether to copy cookies from the current mode into the target mode. |
+
+<Note>
+When you switch from `d` mode to `s` mode with `copy_cookies=True`, browser cookies are automatically transferred to the `Session` object, keeping you logged in without any extra steps.
+</Note>
+
+## Mode-dependent behaviour
+
+Most of the API is identical in both modes, but a few things behave differently:
+
+| Feature | `d` mode | `s` mode |
+|---------|----------|----------|
+| `page.url` | Returns the browser's current URL | Returns the last HTTP response URL |
+| `page.html` | Returns the live DOM as HTML | Returns the response body text |
+| `page.title` | Reads the browser's `<title>` | Parses `<title>` from the response HTML |
+| `page.json` | Parses browser-displayed JSON | Parses the response body as JSON |
+| `page.get()` | Browser navigation | HTTP GET request |
+| `page.post()` | Copies cookies to session, then POSTs; returns a `Response` object | HTTP POST request; returns `True`/`False` |
+| `page.ele()` / `page.eles()` | Finds elements in the live DOM | Finds elements in the parsed HTML |
+
+## Syncing cookies manually
+
+Cookie syncing happens automatically when you call `change_mode()`, but you can also sync manually:
+
+```python
+# copy browser cookies into the session
+page.cookies_to_session()
+
+# copy session cookies back into the browser
+page.cookies_to_browser()
+```
+
+`cookies_to_session()` also copies the browser's User-Agent by default, so the session appears identical to the browser when making requests.
+
+## Practical example: login then scrape
+
+A common pattern is to use the browser to handle a complex login flow, then switch to `s` mode for fast data collection.
+
+<Steps>
+  <Step title="Open the page in browser mode">
+    ```python
+    from DrissionPage import WebPage
+
+    page = WebPage()
+    page.get('https://example.com/login')
+    ```
+  </Step>
+  <Step title="Complete the login in the browser">
+    ```python
+    page.ele('#username').input('alice')
+    page.ele('#password').input('secret')
+    page.ele('#submit').click()
+    page.wait.url_change('dashboard')
+    ```
+  </Step>
+  <Step title="Switch to session mode">
+    Cookies are automatically synced before the first `s` mode request.
+
+    ```python
+    page.change_mode('s')
+    print(page.mode)   # 's'
+    ```
+  </Step>
+  <Step title="Collect data without the browser overhead">
+    ```python
+    for page_num in range(1, 11):
+        page.get(f'https://example.com/data?page={page_num}')
+        rows = page.eles('css:.data-row')
+        for row in rows:
+            print(row.text)
+    ```
+  </Step>
+</Steps>
+
+## Tab management
+
+`WebPage.get_tab()` returns a `WebPageTab` object, which supports the same `change_mode()` method as `WebPage`. This lets you run browser and HTTP operations across multiple tabs independently.
+
+```python
+tab = page.get_tab()
+tab.change_mode('s')
+tab.get('https://api.example.com/data')
+print(tab.json)
+```
+
+## Closing objects
+
+| Method | Description |
+|--------|-------------|
+| `page.close()` | Closes the current tab and the session. |
+| `page.close_driver()` | Closes the browser and switches to `s` mode. |
+| `page.close_session()` | Closes the session and switches to `d` mode. |
+| `page.quit()` | Closes both the browser and session completely. |

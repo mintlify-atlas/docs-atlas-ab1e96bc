@@ -1,80 +1,183 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: "DrissionPage quickstart: browser, HTTP, and hybrid mode"
+description: "Install DrissionPage and write working scripts for browser automation, HTTP data collection, and hybrid login-then-scrape workflows — all with real code."
 ---
 
-## Get started in three steps
+DrissionPage gives you browser control and HTTP requests from the same library, with a consistent element API across both modes. This guide walks through installation and three core usage patterns so you have working code within minutes.
 
-Get your documentation site running locally and make your first customization.
+<Steps>
+  <Step title="Install DrissionPage">
+    Install with pip. DrissionPage requires Python 3.6 or above.
 
-### Step 1: Set up your local environment
+    <CodeGroup>
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+    ```bash pip
+    pip install DrissionPage
+    ```
 
-### Step 2: Deploy your changes
+    ```bash pip3
+    pip3 install DrissionPage
+    ```
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    </CodeGroup>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    Verify the installation:
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    ```bash
+    python -c "import DrissionPage; print(DrissionPage.__version__)"
+    ```
 
-### Step 3: Go live
+    <Note>
+      If you plan to control a browser, you need a Chromium-based browser installed (Chrome or Edge). If the program cannot find your browser automatically, see [step 5](#configure-your-browser-path-if-needed) or the [installation guide](/installation).
+    </Note>
+  </Step>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+  <Step title="First browser automation">
+    `ChromiumPage` controls a Chromium-based browser. When you create a `ChromiumPage` object, DrissionPage launches the browser automatically (or attaches to an already-running instance on the default port).
+
+    This example navigates to a page, fills a search field, and clicks a button:
+
+    ```python
+    from DrissionPage import ChromiumPage
+
+    # Launch or attach to a browser
+    page = ChromiumPage()
+
+    # Navigate to the page
+    page.get('https://gitee.com/login')
+
+    # Find the username field by ID and type into it
+    page.ele('#user_login').input('your_username')
+
+    # Find the password field and type into it
+    page.ele('#user_password').input('your_password')
+
+    # Click the login button by its value attribute
+    page.ele('@value=登录').click()
+    ```
+
+    The `ele()` method has built-in waiting — if the element has not loaded yet, it retries until the element appears or a 10-second timeout is reached.
+
+    Common locator shorthand:
+
+    | Pattern | Matches |
+    |---|---|
+    | `#id-value` | Element with that `id` |
+    | `.class-name` | Element with that CSS class |
+    | `@attr=value` | Element where `attr` equals `value` |
+    | `text:some text` | Element containing that text |
+    | `tag:input` | Element with that tag name |
+  </Step>
+
+  <Step title="First HTTP request with SessionPage">
+    `SessionPage` sends HTTP requests without a browser, using the same element API. It is orders of magnitude faster than browser mode and requires no browser installation.
+
+    ```python
+    from DrissionPage import SessionPage
+
+    page = SessionPage()
+
+    # Fetch a JSON API endpoint
+    page.get('https://httpbin.org/get')
+
+    # Access the parsed JSON response
+    data = page.json
+    print(data['headers']['User-Agent'])
+
+    # Or parse HTML — same ele() API as ChromiumPage
+    page.get('https://quotes.toscrape.com')
+    quotes = page.eles('.quote')
+    for quote in quotes:
+        print(quote('.text').text)
+        print(quote('small.author').text)
+        print()
+    ```
+
+    `SessionPage` supports all standard HTTP methods (`get`, `post`, `put`, `delete`) and you can pass headers, cookies, and request bodies using keyword arguments, just like `requests`.
+  </Step>
+
+  <Step title="Hybrid usage with WebPage">
+    `WebPage` combines both modes in one object. A common pattern is to use browser mode (`d` mode) to handle login, then switch to session mode (`s` mode) to collect data quickly — sharing cookies automatically.
+
+    ```python
+    from DrissionPage import WebPage
+
+    page = WebPage()
+
+    # --- d mode: control the browser for login ---
+    page.get('https://gitee.com/login')
+    page.ele('#user_login').input('your_username')
+    page.ele('#user_password').input('your_password')
+    page.ele('@value=登录').click()
+
+    # Wait for the redirect to complete
+    page.wait.load_start()
+
+    # --- switch to s mode: fast HTTP requests with shared cookies ---
+    page.change_mode()
+
+    # Now collect data at session speed
+    page.get('https://gitee.com/dashboard')
+    repos = page.eles('.repository-name')
+    for repo in repos:
+        print(repo.text)
+    ```
+
+    <Tip>
+      `change_mode()` re-fetches the current URL in the new mode and automatically carries cookies across the switch. You do not need to manage session cookies manually.
+    </Tip>
+
+    You can also convert individual elements to session elements for faster parsing while staying in browser mode:
+
+    ```python
+    # Convert a complex table element to SessionElement for fast parsing
+    table = page.ele('tag:table').s_ele()
+    rows = table.eles('tag:tr')
+    ```
+  </Step>
+
+  <Step title="Configure your browser path if needed">
+    DrissionPage searches common system locations for Chrome automatically. If it cannot find your browser, configure the path using the `dp` CLI tool that ships with the package:
+
+    ```bash
+    dp -p "/path/to/chrome"
+    ```
+
+    For example, on Windows with Chrome installed in a non-default location:
+
+    ```bash
+    dp -p "C:\Program Files\Google\Chrome\Application\chrome.exe"
+    ```
+
+    Or set the path in Python and save it to the configuration file:
+
+    ```python
+    from DrissionPage import ChromiumOptions
+
+    ChromiumOptions().set_browser_path(r'C:\Program Files\Google\Chrome\Application\chrome.exe').save()
+    ```
+
+    To find your browser's executable path, open the browser and navigate to `chrome://version` (or `edge://version`). The path appears at the top of the page.
+
+    <Note>
+      The saved path is stored in DrissionPage's INI configuration file and used automatically on every subsequent run. See the [installation guide](/installation) for the full list of CLI options.
+    </Note>
+  </Step>
+</Steps>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="ChromiumPage reference" icon="browser" href="/pages/chromium-page">
+    Tab management, iframes, action chains, network listeners, screenshots, and more.
+  </Card>
+  <Card title="SessionPage reference" icon="bolt" href="/pages/session-page">
+    HTTP methods, headers, cookies, response parsing, and connection settings.
+  </Card>
+  <Card title="WebPage reference" icon="arrows-left-right" href="/pages/web-page">
+    Mode switching, shared cookies, and features unique to the hybrid page object.
+  </Card>
+  <Card title="Finding elements" icon="magnifying-glass" href="/elements/locating">
+    Full reference for DrissionPage's locator syntax, including XPath and CSS compatibility.
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

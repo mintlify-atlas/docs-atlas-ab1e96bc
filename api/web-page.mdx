@@ -1,0 +1,204 @@
+---
+title: "WebPage — DrissionPage Dual-Mode Page API Reference"
+description: "API reference for WebPage, a dual-mode object combining ChromiumPage and SessionPage that can switch between live browser and HTTP-session modes."
+---
+
+`WebPage` is a dual-mode page object that inherits from both `SessionPage` and `ChromiumPage`. It can operate in driver mode (`'d'`) using a live Chromium browser, or in session mode (`'s'`) using a lightweight HTTP session — and it can switch between them at any time.
+
+When you switch modes, `WebPage` can automatically copy cookies between the browser and the session so authentication state is preserved.
+
+## Constructor
+
+```python
+from DrissionPage import WebPage
+
+page = WebPage()                        # driver mode (default)
+page = WebPage(mode='s')                # session mode
+page = WebPage(mode='d', chromium_options=ChromiumOptions())
+page = WebPage(mode='s', session_or_options=SessionOptions())
+```
+
+<ParamField path="mode" type="str" default="'d'">
+  Initial operating mode. `'d'` for driver (browser) mode, `'s'` for session (HTTP) mode.
+</ParamField>
+
+<ParamField path="chromium_options" type="ChromiumOptions | None" default="None">
+  Browser configuration. When `None`, reads from the default config file.
+</ParamField>
+
+<ParamField path="session_or_options" type="SessionOptions | requests.Session | None" default="None">
+  HTTP session configuration. When `None`, reads from the default config file.
+</ParamField>
+
+## Properties
+
+### Mode and URL
+
+<ResponseField name="mode" type="str">
+  Current operating mode: `'d'` (driver) or `'s'` (session).
+</ResponseField>
+
+<ResponseField name="is_d_mode" type="bool">
+  `True` when operating in driver (browser) mode.
+</ResponseField>
+
+<ResponseField name="url" type="str | None">
+  Current URL. In driver mode, returns the browser's live URL. In session mode, returns the URL of the last HTTP response.
+</ResponseField>
+
+<ResponseField name="title" type="str | None">
+  Page title. In driver mode, from the live document. In session mode, from the `<title>` element in the response HTML.
+</ResponseField>
+
+<ResponseField name="html" type="str">
+  Page HTML. In driver mode, the live outer HTML. In session mode, the response text.
+</ResponseField>
+
+<ResponseField name="json" type="dict | list | None">
+  Parsed JSON body, available in both modes.
+</ResponseField>
+
+<ResponseField name="raw_data" type="str | bytes">
+  In driver mode, the live page HTML. In session mode, the raw response bytes.
+</ResponseField>
+
+### Tab access
+
+<ResponseField name="latest_tab" type="MixTab | str">
+  The most recently activated tab in the browser. Only meaningful in driver mode.
+</ResponseField>
+
+### Session and driver state
+
+<ResponseField name="response" type="requests.Response | None">
+  The last HTTP response object. Only populated after a session-mode request.
+</ResponseField>
+
+<ResponseField name="timeout" type="float">
+  In driver mode, `timeouts.base`. In session mode, the session timeout.
+</ResponseField>
+
+<ResponseField name="set" type="WebPageSetter">
+  Setter accessor combining both `ChromiumPageSetter` and `SessionPageSetter` capabilities.
+</ResponseField>
+
+## Mode switching
+
+### `change_mode()`
+
+Switch between driver mode and session mode.
+
+```python
+page.change_mode('s')            # switch to session mode, copy cookies, navigate
+page.change_mode('d')            # switch to driver mode
+page.change_mode('s', go=False)  # switch without re-navigating
+page.change_mode('d', copy_cookies=False)  # switch without copying cookies
+```
+
+<ParamField path="mode" type="str | None" default="None">
+  Target mode: `'d'` or `'s'`. When `None`, toggles the current mode.
+</ParamField>
+
+<ParamField path="go" type="bool" default="True">
+  After switching, navigate the new mode to the URL that was current in the previous mode. Set to `False` to switch silently.
+</ParamField>
+
+<ParamField path="copy_cookies" type="bool" default="True">
+  Copy cookies from the current mode into the target mode before switching. Set to `False` to keep cookie stores separate.
+</ParamField>
+
+## Cookie synchronization
+
+### `cookies_to_session()`
+
+Copy cookies from the browser to the HTTP session.
+
+```python
+page.cookies_to_session()
+page.cookies_to_session(copy_user_agent=False)
+```
+
+<ParamField path="copy_user_agent" type="bool" default="True">
+  Also copy the browser's `User-Agent` into the session headers.
+</ParamField>
+
+---
+
+### `cookies_to_browser()`
+
+Copy cookies from the HTTP session to the browser.
+
+```python
+page.cookies_to_browser()
+```
+
+## Navigation and HTTP requests
+
+`WebPage` routes `get()`, `post()`, `ele()`, `eles()`, and all other page methods to the appropriate underlying implementation based on the current mode.
+
+```python
+# In driver mode — navigates the browser
+page.get("https://example.com")
+
+# In session mode — makes an HTTP GET request
+page.change_mode('s')
+page.get("https://example.com")
+
+# POST always uses the session, copying cookies from browser first if in driver mode
+resp = page.post("https://api.example.com/data", json={"key": "val"})
+```
+
+See [ChromiumPage](/api/chromium-page) and [SessionPage](/api/session-page) for the full signatures of these shared methods.
+
+## Driver and session lifecycle
+
+### `close_driver()`
+
+Switch to session mode and then shut down the browser connection.
+
+```python
+page.close_driver()
+```
+
+---
+
+### `close_session()`
+
+Switch to driver mode and then close the HTTP session.
+
+```python
+page.close_session()
+```
+
+---
+
+### `close()`
+
+Close both the current tab (if in driver mode) and the HTTP session.
+
+```python
+page.close()
+```
+
+---
+
+### `quit()`
+
+Shut down both the browser and the HTTP session entirely.
+
+```python
+page.quit()
+page.quit(force=True, del_data=True)
+```
+
+<ParamField path="timeout" type="float" default="5">
+  Seconds to wait for graceful browser shutdown.
+</ParamField>
+
+<ParamField path="force" type="bool" default="True">
+  Kill the browser process if it does not exit gracefully.
+</ParamField>
+
+<ParamField path="del_data" type="bool" default="False">
+  Delete the browser user-data directory after quitting.
+</ParamField>

@@ -1,0 +1,357 @@
+---
+title: "SessionPage — DrissionPage HTTP Page API Reference"
+description: "API reference for SessionPage, the browser-free HTTP page object. Covers GET/POST requests, response properties, element finding, and session settings."
+---
+
+`SessionPage` is a lightweight, browser-free page object that uses an underlying `requests.Session` to make HTTP requests and parse the response HTML. It is suited for scraping static pages, calling APIs, or any task that does not need JavaScript execution or browser interaction.
+
+Unlike `ChromiumPage`, `SessionPage` holds a parsed snapshot of the last response. There is no live DOM — element operations work on the HTML received from the most recent request.
+
+## Constructor
+
+```python
+from DrissionPage import SessionPage
+
+page = SessionPage()
+page = SessionPage(session_or_options=SessionOptions())
+```
+
+<ParamField path="session_or_options" type="SessionOptions | requests.Session | None" default="None">
+  Session configuration. Accepts a `SessionOptions` instance, an existing `requests.Session`, or `None` to read from the default config file.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Override the connection timeout in seconds. When `None`, uses the value from `session_or_options`.
+</ParamField>
+
+## Properties
+
+### Response data
+
+<ResponseField name="response" type="requests.Response | None">
+  The raw `requests.Response` object from the most recent request, or `None` if no request has been made.
+</ResponseField>
+
+<ResponseField name="html" type="str">
+  Response body as decoded text. Empty string if no response.
+</ResponseField>
+
+<ResponseField name="json" type="dict | list | None">
+  Parsed JSON body. `None` if the response is not valid JSON or no request has been made.
+</ResponseField>
+
+<ResponseField name="raw_data" type="bytes">
+  Response body as raw bytes. Empty bytes if no response.
+</ResponseField>
+
+<ResponseField name="url" type="str | None">
+  URL of the most recent request.
+</ResponseField>
+
+<ResponseField name="title" type="str | None">
+  Value of the `<title>` element in the response HTML, or `None` if absent.
+</ResponseField>
+
+<ResponseField name="encoding" type="str | None">
+  Character encoding used to decode the response. `None` means auto-detection is active.
+</ResponseField>
+
+### Session settings
+
+<ResponseField name="timeout" type="float">
+  Connection timeout in seconds for new requests.
+</ResponseField>
+
+<ResponseField name="retry_times" type="int">
+  Number of retries on failed requests.
+</ResponseField>
+
+<ResponseField name="retry_interval" type="float">
+  Seconds to wait between retries.
+</ResponseField>
+
+<ResponseField name="session" type="requests.Session">
+  The underlying `requests.Session` object.
+</ResponseField>
+
+<ResponseField name="user_agent" type="str">
+  User-Agent header sent with requests.
+</ResponseField>
+
+<ResponseField name="set" type="SessionPageSetter">
+  Accessor for session configuration setters.
+</ResponseField>
+
+## HTTP methods
+
+### `get()`
+
+Make a GET request and load the response.
+
+```python
+ok = page.get("https://example.com")
+ok = page.get("https://example.com/api", params={"q": "python"}, timeout=10)
+ok = page.get("/path/to/file.html")  # local file path also accepted
+```
+
+<ParamField path="url" type="str">
+  Target URL or local file path. Local paths are read directly without an HTTP request.
+</ParamField>
+
+<ParamField path="show_errmsg" type="bool" default="False">
+  Raise an exception on failure instead of returning `False`.
+</ParamField>
+
+<ParamField path="retry" type="int | None" default="None">
+  Override retry count. Uses `page.retry_times` when `None`.
+</ParamField>
+
+<ParamField path="interval" type="float | None" default="None">
+  Override retry interval in seconds. Uses `page.retry_interval` when `None`.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Request timeout in seconds. Uses `page.timeout` when `None`.
+</ParamField>
+
+<ParamField path="**kwargs" type="any">
+  Additional keyword arguments forwarded directly to `requests.Session.get()`, such as `params`, `headers`, `cookies`, `proxies`, `verify`, `cert`, `stream`, and `auth`.
+</ParamField>
+
+Returns `True` on a successful response, `False` otherwise.
+
+---
+
+### `post()`
+
+Make a POST request.
+
+```python
+ok = page.post("https://api.example.com/submit", data={"key": "value"})
+ok = page.post("https://api.example.com/submit", json={"key": "value"})
+```
+
+<ParamField path="url" type="str">
+  Target URL.
+</ParamField>
+
+<ParamField path="show_errmsg" type="bool" default="False">
+  Raise an exception on failure.
+</ParamField>
+
+<ParamField path="retry" type="int | None" default="None">
+  Override retry count.
+</ParamField>
+
+<ParamField path="interval" type="float | None" default="None">
+  Override retry interval.
+</ParamField>
+
+<ParamField path="**kwargs" type="any">
+  Additional keyword arguments for `requests.Session.post()`, such as `data`, `json`, `files`, `headers`, `cookies`, `auth`, `proxies`, `verify`, and `timeout`.
+</ParamField>
+
+Returns `True` on success, `False` otherwise.
+
+## Finding elements
+
+### `ele()`
+
+Find the first element matching a locator in the response HTML.
+
+```python
+el = page.ele("#main")
+el = page.ele("css:.article-title")
+el = page.ele("xpath://h1")
+el = page.ele("tag:table", index=2)
+```
+
+<ParamField path="locator" type="str | tuple">
+  Locator string or `(by, value)` tuple. Supports `css:`, `xpath:`, `@attr=val`, `tag:`, `text:`, and `text=` prefixes.
+</ParamField>
+
+<ParamField path="index" type="int" default="1">
+  1-based result index. Negative values count from the end.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Ignored for `SessionPage` (no live DOM). Accepted for API compatibility.
+</ParamField>
+
+Returns a `SessionElement`, or a `NoneElement` if not found.
+
+---
+
+### `eles()`
+
+Find all elements matching a locator.
+
+```python
+links = page.eles("tag:a")
+cells = page.eles("css:td")
+```
+
+<ParamField path="locator" type="str | tuple">
+  Locator string or tuple.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Accepted for API compatibility; not used.
+</ParamField>
+
+Returns a `SessionElementsList`.
+
+## Session configuration (`set`)
+
+### `set.headers()`
+
+Replace all session headers.
+
+```python
+page.set.headers({"User-Agent": "MyBot/1.0", "Accept-Language": "en"})
+```
+
+<ParamField path="headers" type="dict">
+  Complete headers dictionary to use for subsequent requests.
+</ParamField>
+
+---
+
+### `set.header()`
+
+Set or update a single header.
+
+```python
+page.set.header("Authorization", "Bearer TOKEN")
+```
+
+<ParamField path="name" type="str">
+  Header name (case-insensitive).
+</ParamField>
+
+<ParamField path="value" type="str">
+  Header value.
+</ParamField>
+
+---
+
+### `set.cookies()`
+
+Set session cookies.
+
+```python
+page.set.cookies({"session": "abc123"})
+```
+
+<ParamField path="cookies" type="dict | list | RequestsCookieJar">
+  Cookies to add to the session.
+</ParamField>
+
+---
+
+### `set.auth()`
+
+Set HTTP authentication credentials.
+
+```python
+page.set.auth(("username", "password"))
+```
+
+<ParamField path="auth" type="tuple | AuthBase">
+  A `(username, password)` tuple or a `requests.auth.AuthBase` instance.
+</ParamField>
+
+---
+
+### `set.proxies()`
+
+Set HTTP and HTTPS proxies.
+
+```python
+page.set.proxies(http="http://proxy:8080", https="http://proxy:8080")
+```
+
+<ParamField path="http" type="str | None" default="None">
+  Proxy URL for HTTP requests.
+</ParamField>
+
+<ParamField path="https" type="str | None" default="None">
+  Proxy URL for HTTPS requests.
+</ParamField>
+
+---
+
+### `set.timeout()`
+
+Set the default connection timeout.
+
+```python
+page.set.timeout(30)
+```
+
+<ParamField path="second" type="float">
+  Timeout in seconds.
+</ParamField>
+
+---
+
+### `set.encoding()`
+
+Force a specific response encoding.
+
+```python
+page.set.encoding("utf-8")
+```
+
+<ParamField path="encoding" type="str | None">
+  Encoding name (e.g. `"utf-8"`, `"gbk"`). Pass `None` to restore auto-detection.
+</ParamField>
+
+<ParamField path="set_all" type="bool" default="True">
+  Apply the encoding to all future responses as well as the current one.
+</ParamField>
+
+---
+
+### `set.user_agent()`
+
+Set the User-Agent header.
+
+```python
+page.set.user_agent("Mozilla/5.0 ...")
+```
+
+<ParamField path="ua" type="str">
+  User-Agent string.
+</ParamField>
+
+## Cookies
+
+### `cookies()`
+
+Read cookies for the current domain or all domains.
+
+```python
+cks = page.cookies()
+cks = page.cookies(all_domains=True, all_info=True)
+```
+
+<ParamField path="all_domains" type="bool" default="False">
+  Include cookies from all domains in the session.
+</ParamField>
+
+<ParamField path="all_info" type="bool" default="False">
+  Return full cookie metadata instead of just `name`, `value`, `domain`.
+</ParamField>
+
+Returns a `CookiesList`.
+
+## Session lifecycle
+
+### `close()`
+
+Close the session and release resources.
+
+```python
+page.close()
+```

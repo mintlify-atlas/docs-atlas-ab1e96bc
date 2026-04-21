@@ -1,0 +1,201 @@
+---
+title: "ChromiumPage — browser automation with DrissionPage"
+description: "ChromiumPage controls Chromium-based browsers via CDP. Learn how to create instances, navigate pages, find elements, and manage tabs."
+---
+
+`ChromiumPage` is the primary object for controlling Chromium-based browsers in DrissionPage. It communicates directly with the browser over the Chrome DevTools Protocol (CDP), giving you full control over page navigation, element interaction, JavaScript execution, tab management, and more — without any WebDriver layer.
+
+## Creating an instance
+
+<Tabs>
+  <Tab title="Default (read from config)">
+    The simplest way to get started. DrissionPage reads browser settings from its ini configuration file and either starts a new browser or connects to an existing one on port 9222.
+
+    ```python
+    from DrissionPage import ChromiumPage
+
+    page = ChromiumPage()
+    ```
+  </Tab>
+  <Tab title="With ChromiumOptions">
+    Use `ChromiumOptions` when you need to specify a custom browser path, port, user data directory, or any other startup flag. Options only take effect when the browser is first launched.
+
+    ```python
+    from DrissionPage import ChromiumPage, ChromiumOptions
+
+    co = ChromiumOptions().set_browser_path(r'D:\chrome.exe')
+    page = ChromiumPage(addr_or_opts=co)
+    ```
+  </Tab>
+  <Tab title="Connect to a running browser">
+    Pass an `ip:port` string to connect to a browser that is already running with remote debugging enabled.
+
+    ```python
+    page = ChromiumPage(addr_or_opts='127.0.0.1:9333')
+    ```
+  </Tab>
+</Tabs>
+
+### Constructor parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `addr_or_opts` | `str` \| `int` \| `ChromiumOptions` | `None` | Browser address (`ip:port`), port number, or a `ChromiumOptions` object. `None` reads from the ini file. |
+| `tab_id` | `str` | `None` | ID of the tab to control. `None` attaches to the currently active tab. |
+
+<Note>
+`ChromiumPage` follows a singleton pattern per browser. Calling `ChromiumPage()` again for the same browser process returns the existing object rather than creating a new one.
+</Note>
+
+## Navigating pages
+
+### `get(url)`
+
+Navigates to a URL and waits for the page to load. Returns `True` if the connection succeeds.
+
+```python
+page.get('https://example.com')
+```
+
+You can customise retry and timeout behaviour per request:
+
+```python
+page.get('https://example.com', retry=3, interval=2, timeout=15)
+```
+
+### History navigation
+
+```python
+page.back()        # go back one step
+page.back(2)       # go back two steps
+page.forward()     # go forward one step
+page.refresh()     # reload the current page
+page.stop_loading()  # abort an in-progress load
+```
+
+### Load strategies
+
+Control when DrissionPage considers a page "loaded":
+
+```python
+page.set.load_mode.normal()  # wait for all resources (default)
+page.set.load_mode.eager()   # stop after DOM is ready
+page.set.load_mode.none()    # return immediately after connecting
+```
+
+`none` mode is useful when combined with network listening or element polling — you can stop loading as soon as you have what you need:
+
+```python
+page.set.load_mode.none()
+page.get('https://example.com')
+ele = page.ele('tag:h1')   # returns as soon as the element appears
+page.stop_loading()
+```
+
+## Reading page information
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `page.url` | `str` | URL of the current page |
+| `page.title` | `str` | Title text of the current page |
+| `page.html` | `str` | Full HTML source of the current page |
+| `page.json` | `dict` | Response body parsed as JSON (useful when the browser displays raw JSON) |
+| `page.tab_id` | `str` | CDP target ID for the current tab |
+| `page.tabs_count` | `int` | Total number of open tabs |
+| `page.address` | `str` | Browser address, e.g. `127.0.0.1:9222` |
+| `page.process_id` | `int` | OS process ID of the browser |
+| `page.browser_version` | `str` | Browser version string |
+
+```python
+page.get('https://example.com')
+print(page.title)   # "Example Domain"
+print(page.url)     # "https://example.com/"
+```
+
+## Finding elements
+
+`ChromiumPage` shares the same locator syntax across all page object types. Use `ele()` to get a single element and `eles()` to get all matches.
+
+```python
+# by CSS selector
+page.ele('#submit-button')
+page.ele('css:.product-card')
+
+# by XPath
+page.ele('xpath://h1[@class="title"]')
+
+# by text content
+page.ele('text:Sign in')
+
+# get all matches
+cards = page.eles('css:.product-card')
+for card in cards:
+    print(card.text)
+```
+
+See [finding elements](/elements/locating) for the full locator syntax reference.
+
+## Waiting
+
+The `wait` object gives you fine-grained control over when your code proceeds:
+
+```python
+page.wait.load_complete()          # wait until the page finishes loading
+page.wait.ele_displayed('#modal')  # wait until an element becomes visible
+page.wait.ele_hidden('#spinner')   # wait until an element is hidden
+page.wait.title_change('Dashboard') # wait until the title contains text
+page.wait.url_change('checkout')   # wait until the URL changes
+```
+
+## Taking a screenshot
+
+```python
+# save to file
+page.get_screenshot(path='screenshot.png')
+
+# save the page as MHTML or PDF
+page.save(path='.', name='page.mhtml')
+page.save(path='.', name='page.pdf', as_pdf=True)
+```
+
+## Managing tabs
+
+```python
+# open a new tab
+new_tab = page.new_tab('https://example.com')
+
+# get a specific tab by index or ID
+tab = page.get_tab(1)
+
+# get all open tabs
+tabs = page.get_tabs()
+
+# close the current tab
+page.close()
+
+# quit the browser entirely
+page.quit()
+```
+
+## Running JavaScript
+
+```python
+result = page.run_js('return document.title')
+page.run_js('window.scrollTo(0, arguments[0])', 500)
+```
+
+## Running multiple browsers
+
+To control more than one browser at a time, give each a distinct port and user data directory:
+
+```python
+from DrissionPage import ChromiumPage, ChromiumOptions
+
+co1 = ChromiumOptions().set_paths(local_port=9111, user_data_path=r'D:\data1')
+co2 = ChromiumOptions().set_paths(local_port=9222, user_data_path=r'D:\data2')
+
+page1 = ChromiumPage(addr_or_opts=co1)
+page2 = ChromiumPage(addr_or_opts=co2)
+```
+
+Use `ChromiumOptions().auto_port()` to let DrissionPage pick available ports automatically.

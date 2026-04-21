@@ -1,0 +1,311 @@
+---
+title: "Reading element properties and content in DrissionPage"
+description: "Access text, HTML, attributes, size, position, and state from ChromiumElement and SessionElement objects returned by DrissionPage."
+---
+
+After `ele()` returns an element object, you can read everything about it — its text, HTML markup, individual attributes, size and coordinates, and interactive state. `ChromiumElement` (browser mode) and `SessionElement` (session mode) share the same core properties for text and attributes. `ChromiumElement` adds browser-only properties for geometry, visual state, and screenshots.
+
+## Text and HTML
+
+### `.text`
+
+Returns the visible text content of the element, with whitespace normalised.
+
+<CodeGroup>
+
+```python ChromiumElement
+ele = page.ele('tag:article')
+print(ele.text)
+# "This is the article body text."
+```
+
+```python SessionElement
+from DrissionPage import SessionPage
+
+page = SessionPage()
+page.get('https://example.com')
+ele = page.ele('tag:h1')
+print(ele.text)
+```
+
+</CodeGroup>
+
+### `.raw_text`
+
+Returns the raw `innerText` of the element, preserving whitespace and line breaks as the browser renders them.
+
+```python
+print(ele.raw_text)
+```
+
+### `.html`
+
+Returns the full outer HTML of the element, including its own opening and closing tags.
+
+```python
+print(ele.html)
+# '<div id="card"><p>Hello</p></div>'
+```
+
+### `.inner_html`
+
+Returns only the HTML content inside the element's tags.
+
+```python
+print(ele.inner_html)
+# '<p>Hello</p>'
+```
+
+### `.texts()`
+
+Returns a list of the text of each direct child node (both element nodes and text nodes). Useful when text and child elements are interleaved.
+
+```python
+for chunk in ele.texts():
+    print(chunk)
+```
+
+## Attributes
+
+### `.attr(name)`
+
+Returns the value of a single attribute. Returns `None` if the attribute does not exist.
+
+```python
+href = ele.attr('href')
+placeholder = ele.attr('placeholder')
+```
+
+For `href` and `src` attributes, `SessionElement.attr()` automatically resolves relative URLs to absolute ones.
+
+### `.attrs`
+
+Returns a dictionary of all attributes and their values.
+
+```python
+all_attrs = ele.attrs
+# {'id': 'submit', 'class': 'btn btn-primary', 'type': 'button'}
+
+for name, value in ele.attrs.items():
+    print(f'{name} = {value}')
+```
+
+### `.tag`
+
+Returns the tag name as a lowercase string.
+
+```python
+print(ele.tag)   # 'input', 'div', 'a', ...
+```
+
+### `.link`
+
+Returns the `href` attribute for `<a>` tags, or `src` for other tags that use `src`. Returns `None` if neither attribute exists.
+
+```python
+anchor = page.ele('tag:a')
+url = anchor.link      # equivalent to anchor.attr('href')
+
+img = page.ele('tag:img')
+src = img.link         # equivalent to img.attr('src')
+```
+
+### `.value`
+
+Returns the `value` property of form fields. This reads the live DOM property in browser mode, so it reflects text the user has typed or JavaScript has set — not just the HTML attribute.
+
+```python
+field = page.ele('tag:input')
+print(field.value)
+```
+
+### `.xpath` and `.css_path`
+
+Return the absolute XPath or CSS path of the element within the page.
+
+```python
+print(ele.xpath)      # '/html/body/div[2]/p[1]'
+print(ele.css_path)   # 'body > div:nth-child(2) > p:nth-child(1)'
+```
+
+## Practical example: extracting a table
+
+```python
+from DrissionPage import SessionPage
+
+page = SessionPage()
+page.get('https://example.com/data-table')
+
+rows = page.ele('tag:table').eles('tag:tr')
+for row in rows:
+    cells = row.eles('tag:td')
+    print([cell.text for cell in cells])
+```
+
+## Size and position (ChromiumElement only)
+
+These properties live on the `.rect` attribute and are only available for browser elements. All coordinates are floats.
+
+### `rect.size`
+
+Returns `(width, height)` as a tuple.
+
+```python
+width, height = ele.rect.size
+```
+
+### `rect.location`
+
+Returns the `(x, y)` coordinates of the **top-left corner** of the element relative to the full page.
+
+```python
+x, y = ele.rect.location
+```
+
+### `rect.midpoint`
+
+Returns the `(x, y)` coordinates of the **center** of the element relative to the full page.
+
+```python
+cx, cy = ele.rect.midpoint
+```
+
+### Viewport variants
+
+Each position property has a viewport version that measures coordinates relative to the visible viewport rather than the full page:
+
+```python
+vx, vy = ele.rect.viewport_location
+vcx, vcy = ele.rect.viewport_midpoint
+```
+
+### `rect.corners`
+
+Returns a tuple of four `(x, y)` pairs in order: top-left, top-right, bottom-right, bottom-left.
+
+```python
+tl, tr, br, bl = ele.rect.corners
+```
+
+## Element states (ChromiumElement only)
+
+State properties are on the `.states` attribute. They reflect the current live state of the element in the browser.
+
+### `states.is_displayed`
+
+`True` if the element is visible (not hidden via `display: none`, `visibility: hidden`, or the `hidden` attribute).
+
+```python
+if ele.states.is_displayed:
+    ele.click()
+```
+
+### `states.is_enabled`
+
+`True` if the element is not disabled.
+
+```python
+submit_btn = page.ele('#submit')
+if submit_btn.states.is_enabled:
+    submit_btn.click()
+```
+
+### `states.is_checked`
+
+`True` if a checkbox or radio button is checked.
+
+```python
+checkbox = page.ele('tag:input@type=checkbox')
+print(checkbox.states.is_checked)
+```
+
+### `states.is_selected`
+
+`True` if an `<option>` element inside a `<select>` is selected.
+
+```python
+option = page.ele('tag:option')
+print(option.states.is_selected)
+```
+
+### `states.is_in_viewport`
+
+`True` if the element's click point is within the visible viewport.
+
+```python
+if not ele.states.is_in_viewport:
+    ele.scroll.to_see()
+```
+
+### `states.is_alive`
+
+`True` if the element still exists in the DOM. Useful after a page update or navigation.
+
+```python
+if not ele.states.is_alive:
+    ele = page.ele('#my-element')  # re-fetch
+```
+
+### `states.is_covered`
+
+Returns `False` if the element is not covered. Returns the backend node ID of the covering element if it is covered.
+
+```python
+covered_by = ele.states.is_covered
+if covered_by:
+    print(f'Covered by node {covered_by}')
+```
+
+### `states.is_clickable`
+
+`True` if the element has geometry, is enabled, is displayed, and has `pointer-events` enabled.
+
+```python
+if ele.states.is_clickable:
+    ele.click()
+```
+
+## Screenshots (ChromiumElement only)
+
+`get_screenshot()` captures the element's bounding box as an image. It automatically scrolls the element into view before capturing.
+
+```python
+# Save to a file
+ele.get_screenshot(path='/tmp/', name='element.jpg')
+
+# Get the image as bytes
+img_bytes = ele.get_screenshot(as_bytes='jpg')
+
+# Get as base64
+img_b64 = ele.get_screenshot(as_base64='png')
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `path` | `str` or `Path` | `None` | Directory to save the file |
+| `name` | `str` | `None` | File name; defaults to `<tag>.jpg` |
+| `as_bytes` | `str` | `None` | Return bytes; pass format string e.g. `'jpg'` |
+| `as_base64` | `str` | `None` | Return base64; pass format string e.g. `'png'` |
+| `scroll_to_center` | `bool` | `True` | Scroll the element into the center of the viewport first |
+
+## Saving image resources (ChromiumElement only)
+
+For `<img>`, `<script>`, and similar tags, `get_src()` returns the raw resource (bytes for base64 data, string otherwise):
+
+```python
+img = page.ele('tag:img')
+data = img.get_src()
+
+# Save directly to disk
+img.save('/tmp/image.jpg')
+```
+
+## Comparing elements
+
+Two element objects can be compared with `==` to check whether they refer to the same DOM node:
+
+```python
+a = page.ele('tag:div')
+b = page.ele('tag:div')
+print(a == b)   # True — same first div
+```

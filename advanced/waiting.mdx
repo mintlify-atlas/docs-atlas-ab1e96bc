@@ -1,0 +1,169 @@
+---
+title: "Waiting for page loads and element states in DrissionPage"
+description: "Wait for page loads, element visibility, URL changes, new tabs, and downloads using built-in wait methods with configurable timeouts and error handling."
+---
+
+Web pages load asynchronously. Navigations trigger document reloads, AJAX calls swap out content, and animations change element visibility — all without a predictable schedule. DrissionPage's `wait` object gives you explicit controls for each of these situations so you can pause precisely as long as needed rather than sleeping for a fixed duration.
+
+## Page-level waits
+
+Access page waits through `page.wait`:
+
+```python
+from DrissionPage import ChromiumPage
+
+page = ChromiumPage()
+page.get('https://example.com')
+
+page.wait.doc_loaded()   # wait for the DOM to finish loading
+page.wait.load_start()   # wait for a navigation to begin
+```
+
+| Method | Description |
+|---|---|
+| `page.wait.doc_loaded(timeout, raise_err)` | Wait until the document finishes loading |
+| `page.wait.load_start(timeout, raise_err)` | Wait until a page load starts |
+| `page.wait.url_change(text, exclude, timeout, raise_err)` | Wait until the URL contains (or no longer contains) `text` |
+| `page.wait.title_change(text, exclude, timeout, raise_err)` | Wait until the title contains (or no longer contains) `text` |
+| `page.wait.new_tab(timeout, curr_tab, raise_err)` | Wait for a new tab to open |
+| `page.wait.download_begin(timeout, cancel_it)` | Wait for a browser download to start |
+| `page.wait.downloads_done(timeout, cancel_if_timeout)` | Wait for all tab downloads to complete |
+| `page.wait(seconds)` | Sleep for a fixed number of seconds |
+| `page.wait(min, max)` | Sleep for a random duration between `min` and `max` |
+
+---
+
+## Element waits
+
+<Tabs>
+  <Tab title="Wait from the page">
+    Pass a locator or an element object. These methods search for the element first, then wait for the condition.
+
+    ```python
+    # wait up to default timeout for the spinner to disappear
+    page.wait.ele_hidden('#loading-spinner')
+
+    # wait for a result row to appear
+    page.wait.ele_displayed('.result-row')
+
+    # wait for an element to be removed from the DOM entirely
+    page.wait.ele_deleted('#old-content')
+
+    # wait for multiple locators to all be present
+    page.wait.eles_loaded(['.header', '.footer', '#main'])
+    ```
+
+    | Method | Description |
+    |---|---|
+    | `page.wait.ele_displayed(loc_or_ele, timeout, raise_err)` | Wait until the element is visible |
+    | `page.wait.ele_hidden(loc_or_ele, timeout, raise_err)` | Wait until the element is hidden |
+    | `page.wait.ele_deleted(loc_or_ele, timeout, raise_err)` | Wait until the element is removed from the DOM |
+    | `page.wait.eles_loaded(locators, timeout, any_one, raise_err)` | Wait until one or all of a list of locators is found |
+  </Tab>
+  <Tab title="Wait from an element">
+    Call `wait` directly on an element reference you already hold.
+
+    ```python
+    btn = page('#submit-btn')
+
+    btn.wait.displayed()   # wait until this specific element is visible
+    btn.wait.hidden()      # wait until it is hidden
+    btn.wait.deleted()     # wait until it is removed from the DOM
+    ```
+
+    Element-level wait methods accept the same `timeout` and `raise_err` parameters as their page-level counterparts.
+  </Tab>
+</Tabs>
+
+---
+
+## Tab waits
+
+```python
+# open a new tab by clicking a link, then wait for it to appear
+page('t:a').click()
+new_tab_id = page.wait.new_tab(timeout=10)
+new_tab = page.get_tab(new_tab_id)
+```
+
+---
+
+## Download waits
+
+```python
+page.set.download_path('/tmp/downloads')
+page('#download-link').click()
+
+mission = page.wait.download_begin()          # wait for the task to start
+page.wait.downloads_done()                    # wait for the task to finish
+print(mission.final_path)                     # full path to the saved file
+```
+
+---
+
+## Fixed sleep
+
+When you just need to pause for a moment, call the waiter directly:
+
+```python
+page.wait(2)          # sleep exactly 2 seconds
+page.wait(1, 3)       # sleep between 1 and 3 seconds (randomized)
+```
+
+---
+
+## Return values and error handling
+
+Every wait method returns either the expected result (a tab ID, `True`, a mission object, etc.) on success, or `False` on timeout. You can also make a timeout raise an exception immediately.
+
+```python
+result = page.wait.ele_displayed('#status', timeout=5)
+if result is False:
+    print('element never appeared')
+```
+
+Pass `raise_err=True` to get an exception instead of `False`:
+
+```python
+from DrissionPage.errors import WaitTimeoutError
+
+try:
+    page.wait.ele_displayed('#status', timeout=5, raise_err=True)
+except WaitTimeoutError:
+    print('timed out waiting for #status')
+```
+
+<Note>
+  Set `Settings.raise_when_wait_failed = True` once at the top of your script
+  to make every wait method raise `WaitTimeoutError` on timeout by default,
+  without passing `raise_err=True` every time.
+
+  ```python
+  from DrissionPage.common import Settings
+
+  Settings.raise_when_wait_failed = True
+  ```
+</Note>
+
+---
+
+## Auto-retry for requests
+
+For session-based requests (`SessionPage` and the session mode of `WebPage`), DrissionPage will retry failed connections automatically. Configure retries in `ChromiumOptions` or `SessionOptions`:
+
+```python
+from DrissionPage import ChromiumOptions
+
+co = ChromiumOptions()
+co.set_retry(times=5, interval=2)  # retry up to 5 times, 2 seconds apart
+```
+
+Or save the values to the INI file:
+
+```ini
+[others]
+retry_times = 5
+retry_interval = 2
+```
+
+The `retry_times` and `retry_interval` settings also apply to element-finding operations that time out.

@@ -1,0 +1,266 @@
+---
+title: "Configuring DrissionPage: ChromiumOptions and INI files"
+description: "Configure browser paths, headless mode, proxies, timeouts, and session options using ChromiumOptions, SessionOptions, and INI files."
+---
+
+DrissionPage reads startup configuration from an INI file automatically when you create a page object. You can modify these defaults programmatically through `ChromiumOptions` or `SessionOptions`, and persist them back to the file so every subsequent run picks them up without extra code.
+
+## INI file
+
+The default configuration file is `configs.ini`, stored inside the DrissionPage package directory. Its initial contents look like this:
+
+```ini
+[paths]
+download_path =
+tmp_path =
+
+[chromium_options]
+address = 127.0.0.1:9222
+browser_path = chrome
+arguments = ['--no-default-browser-check', '--disable-suggestions-ui', '--no-first-run', '--disable-infobars', '--disable-popup-blocking']
+extensions = []
+prefs = {'profile.default_content_settings.popups': 0, 'profile.default_content_setting_values': {'notifications': 2}}
+flags = {}
+load_mode = normal
+user = Default
+auto_port = False
+system_user_path = False
+existing_only = False
+
+[session_options]
+headers = {'user-agent': 'Mozilla/5.0 ...', 'accept': 'text/html,...', 'connection': 'keep-alive'}
+
+[timeouts]
+base = 10
+page_load = 30
+script = 30
+
+[proxies]
+http =
+https =
+
+[others]
+retry_times = 3
+retry_interval = 2
+```
+
+<Warning>
+  INI files only apply at startup. Modifying the file after creating a page
+  object has no effect. Settings also have no effect when taking over a browser
+  that is already open.
+</Warning>
+
+### Use a project-local config file
+
+The default config lives inside the package and gets reset on every upgrade. Copy it to your project directory so you can edit it by hand and safely re-package your app:
+
+<Steps>
+  <Step title="Copy the config to your project">
+    Run this from your project root. It creates `dp_configs.ini` in the current directory.
+
+    ```bash
+    dp --configs-to-here
+    ```
+
+    Or do the same from Python:
+
+    ```python
+    from DrissionPage.common import configs_to_here
+
+    configs_to_here()
+    ```
+  </Step>
+  <Step title="Edit dp_configs.ini as needed">
+    Open the file in any text editor and adjust browser path, timeouts, proxy settings, and so on.
+  </Step>
+  <Step title="Run your script normally">
+    DrissionPage automatically prefers `dp_configs.ini` in the current directory over the package default.
+
+    ```python
+    from DrissionPage import ChromiumPage
+
+    page = ChromiumPage()  # picks up dp_configs.ini automatically
+    ```
+  </Step>
+</Steps>
+
+---
+
+## ChromiumOptions
+
+`ChromiumOptions` controls how the browser is launched. Create one, modify it, then pass it when constructing a page object. Changes only take effect before the browser starts.
+
+```python
+from DrissionPage import ChromiumPage, ChromiumOptions
+
+co = ChromiumOptions()
+co.set_browser_path('/usr/bin/google-chrome')
+co.headless(True)
+co.set_proxy('http://127.0.0.1:8080')
+co.set_timeouts(base=10, page_load=30, script=30)
+
+page = ChromiumPage(co)
+```
+
+### Key methods
+
+| Method | Description |
+|---|---|
+| `set_browser_path(path)` | Path to the browser executable |
+| `set_user_data_path(path)` | Directory for browser profile data |
+| `set_argument(arg, value=None)` | Add a Chromium launch argument, e.g. `--disable-gpu` |
+| `remove_argument(value)` | Remove a previously set argument |
+| `headless(on_off=True)` | Enable or disable headless mode |
+| `set_proxy(proxy)` | Set a proxy server, e.g. `'http://host:port'` |
+| `set_timeouts(base, page_load, script)` | Override timeout values (seconds) |
+| `set_load_mode(value)` | Page load strategy: `'normal'`, `'eager'`, or `'none'` |
+| `auto_port(on_off=True)` | Let DrissionPage pick an available port automatically |
+| `set_local_port(port)` | Connect on a specific port |
+| `set_address(address)` | Connect to a remote debugging address |
+| `set_user(user)` | Browser profile name (default: `'Default'`) |
+| `no_imgs(on_off=True)` | Disable image loading |
+| `no_js(on_off=True)` | Disable JavaScript |
+| `mute(on_off=True)` | Mute audio |
+| `incognito(on_off=True)` | Launch in incognito / private mode |
+| `set_user_agent(user_agent)` | Override the user-agent string |
+| `ignore_certificate_errors(on_off=True)` | Ignore SSL certificate errors |
+| `add_extension(path)` | Load a browser extension from a path |
+| `set_pref(arg, value)` | Set a Chrome preference key |
+| `set_flag(flag, value)` | Set a Chrome feature flag |
+| `set_retry(times, interval)` | Request retry count and interval (seconds) |
+| `set_download_path(path)` | Default download directory |
+
+### Saving configuration
+
+<CodeGroup>
+```python Persist to loaded INI file
+co = ChromiumOptions()
+co.headless(True)
+co.set_proxy('http://127.0.0.1:8080')
+
+co.save()  # writes back to the INI file that was loaded
+```
+
+```python Save to a specific path
+co = ChromiumOptions()
+co.set_browser_path('/usr/bin/google-chrome')
+
+co.save('/home/user/myproject/my_config.ini')
+```
+
+```python Save to the package default
+co = ChromiumOptions()
+co.set_browser_path('/usr/bin/google-chrome')
+
+co.save_to_default()  # overwrites the package-level configs.ini
+```
+</CodeGroup>
+
+### Load settings without reading a file
+
+When packaging a standalone executable, pass `read_file=False` to avoid depending on any INI file on disk:
+
+```python
+from DrissionPage import ChromiumPage, ChromiumOptions
+
+co = ChromiumOptions(read_file=False)
+co.set_browser_path(r'.\Chrome\chrome.exe')
+co.set_user_data_path(r'.\Chrome\userData')
+co.auto_port(True)
+
+page = ChromiumPage(co)
+```
+
+---
+
+## SessionOptions
+
+`SessionOptions` configures the `requests`-based HTTP session used in `SessionPage` and the session mode of `WebPage`.
+
+```python
+from DrissionPage import SessionPage, SessionOptions
+
+so = SessionOptions()
+so.set_headers({'User-Agent': 'my-bot/1.0'})
+so.set_proxies(http='http://127.0.0.1:8080', https='http://127.0.0.1:8080')
+so.set_timeout(15)
+
+page = SessionPage(so)
+```
+
+### Key methods
+
+| Method | Description |
+|---|---|
+| `set_headers(headers)` | Set all request headers at once |
+| `set_a_header(name, value)` | Set a single header |
+| `remove_a_header(name)` | Remove a single header |
+| `set_cookies(cookies)` | Set cookies (accepts dict, list, or string) |
+| `set_auth(auth)` | HTTP authentication tuple `(user, password)` |
+| `set_proxies(http, https)` | Set HTTP and HTTPS proxy URLs |
+| `set_timeout(second)` | Connection timeout in seconds |
+| `set_verify(on_off)` | Enable or disable SSL verification |
+| `set_cert(cert)` | Path to client-side SSL certificate |
+| `set_retry(times, interval)` | Retry count and interval for failed requests |
+| `set_download_path(path)` | Default download directory |
+| `save()` / `save(path)` | Persist settings to INI file |
+
+---
+
+## Global settings
+
+`Settings` is a module-level singleton that controls runtime behavior across all page objects. Set these before creating any page objects.
+
+```python
+from DrissionPage.common import Settings
+
+Settings.raise_when_ele_not_found = True   # raise ElementNotFoundError instead of returning NoneElement
+Settings.raise_when_click_failed = True    # raise CanNotClickError on click failure
+Settings.raise_when_wait_failed = True     # raise WaitTimeoutError on wait timeout
+Settings.singleton_tab_obj = True         # reuse the same Tab object for the same tab (default: True)
+Settings.cdp_timeout = 30                 # timeout for individual CDP calls (seconds)
+Settings.browser_connect_timeout = 30     # timeout when connecting to the browser (seconds)
+Settings.auto_handle_alert = True         # auto-accept JS dialogs (True=accept, False=dismiss, None=off)
+```
+
+<Note>
+  `Settings` properties are class-level attributes. Assignments take effect
+  immediately for all existing and future page objects in the same process.
+</Note>
+
+### Configure once, use everywhere
+
+<Steps>
+  <Step title="Set global defaults at the top of your script">
+    ```python
+    from DrissionPage.common import Settings
+
+    Settings.raise_when_ele_not_found = True
+    Settings.raise_when_wait_failed = True
+    ```
+  </Step>
+  <Step title="Create a ChromiumOptions with your preferred settings">
+    ```python
+    from DrissionPage import ChromiumOptions
+
+    co = ChromiumOptions()
+    co.headless(True)
+    co.set_proxy('http://127.0.0.1:8080')
+    co.set_timeouts(base=10, page_load=60)
+    co.auto_port(True)
+    ```
+  </Step>
+  <Step title="Save and reuse">
+    ```python
+    co.save()  # written to INI file; next run loads it automatically
+    ```
+  </Step>
+  <Step title="Create page objects — config loads automatically">
+    ```python
+    from DrissionPage import ChromiumPage
+
+    page = ChromiumPage()  # reads saved INI config
+    page.get('https://example.com')
+    ```
+  </Step>
+</Steps>

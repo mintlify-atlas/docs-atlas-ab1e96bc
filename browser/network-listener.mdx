@@ -1,0 +1,170 @@
+---
+title: "Intercepting and capturing network requests in DrissionPage"
+description: "Capture XHR and fetch responses in DrissionPage using the built-in Listener, then access response body, headers, and request data directly."
+---
+
+Many pages load data dynamically through API calls rather than embedding it in the HTML. DrissionPage's built-in listener intercepts these network packets as they pass through the browser, letting you capture JSON payloads directly instead of scraping them from the DOM.
+
+Every page, tab, and frame object exposes a `listen` property that gives access to the listener.
+
+<Warning>
+The listener only captures requests made **after** `listen.start()` is called. Any requests that occurred before starting — including the initial page load — are not available.
+</Warning>
+
+## Typical workflow
+
+<Steps>
+  <Step title="Start the listener before triggering requests">
+    Call `listen.start()` with a URL pattern to match. Matching is a substring check by default.
+
+    ```python
+    from DrissionPage import ChromiumPage
+
+    page = ChromiumPage()
+    page.listen.start('api/data')
+    ```
+  </Step>
+  <Step title="Trigger the network request">
+    Navigate to a page, click a button, or perform any action that causes the browser to make a matching request.
+
+    ```python
+    page.get('https://example.com/list')
+    ```
+  </Step>
+  <Step title="Wait for the packet">
+    `listen.wait()` blocks until a matching packet arrives and returns a `DataPacket` object.
+
+    ```python
+    packet = page.listen.wait()
+    ```
+  </Step>
+  <Step title="Read the response data">
+    ```python
+    print(packet.url)
+    print(packet.response.body)     # dict if JSON, str otherwise
+    print(packet.response.headers)
+    ```
+  </Step>
+  <Step title="Stop listening when done">
+    ```python
+    page.listen.stop()
+    ```
+  </Step>
+</Steps>
+
+## Starting the listener
+
+### `listen.start()`
+
+Starts the listener and sets the capture target. Calling this again while the listener is running clears the existing queue and continues with the new target.
+
+```python
+page.listen.start('gitee.com/explore')
+page.listen.start(['api/users', 'api/posts'])   # multiple targets
+page.listen.start(True)                          # capture all requests
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `targets` | `str`, `list`, `tuple`, or `True` | `None` | URL substring(s) to match; `True` captures everything |
+| `is_regex` | `bool` or `None` | `None` | Treat targets as regular expressions |
+| `method` | `str`, `list`, or `True` | `None` | HTTP methods to capture; defaults to `GET` and `POST` |
+| `res_type` | `str`, `list`, or `True` | `None` | Resource types to capture; `True` captures all types |
+
+## Waiting for packets
+
+### `listen.wait()`
+
+Blocks until the specified number of matching packets arrive, then returns them.
+
+```python
+packet = page.listen.wait()           # wait for 1 packet
+packets = page.listen.wait(count=3)   # wait for 3 packets
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `count` | `int` | `1` | Number of packets to collect |
+| `timeout` | `float` or `None` | `None` | Seconds to wait; `None` waits indefinitely |
+| `fit_count` | `bool` | `True` | If `True`, return `False` on timeout instead of partial results |
+| `raise_err` | `bool` or `None` | `None` | Raise `WaitTimeoutError` on timeout |
+
+### `listen.steps()`
+
+Returns an iterable for use in a `for` loop. Each iteration yields the next matching packet in real time:
+
+```python
+page.listen.start('gitee.com/explore')
+page.get('https://gitee.com/explore/all')
+
+for i, packet in enumerate(page.listen.steps()):
+    print(packet.url)
+    page('@rel=next').click()
+    if i >= 4:
+        break
+```
+
+### `listen.wait_silent()`
+
+Waits until all in-flight requests matching the target have completed:
+
+```python
+page.listen.wait_silent()
+```
+
+## The `DataPacket` object
+
+Each captured packet provides request and response data:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `url` | `str` | Full request URL |
+| `method` | `str` | HTTP method (`GET`, `POST`, etc.) |
+| `resourceType` | `str` | Resource type (e.g. `XHR`, `Fetch`, `Document`) |
+| `is_failed` | `bool` | Whether the connection failed |
+| `request` | `Request` | Request details |
+| `response` | `Response` | Response details |
+| `fail_info` | `FailInfo` | Failure details when `is_failed` is `True` |
+
+### Request data
+
+```python
+packet.request.headers    # CaseInsensitiveDict
+packet.request.postData   # str or dict for POST bodies
+```
+
+### Response data
+
+```python
+packet.response.body      # dict (auto-parsed if JSON), bytes (images), or str
+packet.response.raw_body  # unprocessed body text
+packet.response.headers   # CaseInsensitiveDict
+```
+
+## Real example: capture paginated API responses
+
+This example intercepts the JSON response for each page of a listing, printing the URL as each page loads:
+
+```python
+from DrissionPage import ChromiumPage
+
+page = ChromiumPage()
+page.get('https://gitee.com/explore/all')
+
+page.listen.start('gitee.com/explore')
+
+for _ in range(5):
+    page('@rel=next').click()
+    packet = page.listen.wait()
+    data = packet.response.body   # parsed JSON dict
+    print(packet.url, '->', type(data))
+```
+
+## Pausing and resuming
+
+```python
+page.listen.pause()    # pause and clear the queue by default
+page.listen.resume()   # continue from where it left off
+```
+
+Pass `clear=False` to `pause()` to retain already-captured packets in the queue.
